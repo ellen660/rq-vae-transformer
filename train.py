@@ -45,6 +45,7 @@ import functools
     # return module(xs, cond=cond, model_aux=model_aux, amp=amp, return_embeddings=return_embeddings, one_hot=one_hot)
 
 def predict_future(model, logits, tau=0.1):
+    #testing
     soft_tokens = F.gumbel_softmax(logits[:, 1:, :, :], tau, hard=False)
     hard_tokens = torch.argmax(logits[:, 1:, :, :], dim=-1)
     ste_tokens = (F.one_hot(hard_tokens.to(torch.int64), config.arch.vocab_size).float() - soft_tokens).detach() + soft_tokens
