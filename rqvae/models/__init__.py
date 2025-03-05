@@ -15,6 +15,7 @@
 from .ema import ExponentialMovingAverage
 from .rqvae import get_rqvae
 from .rqtransformer import get_rqtransformer
+from .rqtransformer import RQTransformerConfig
 
 
 def create_model(config, ema=False):

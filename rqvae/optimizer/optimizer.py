@@ -36,7 +36,7 @@ def create_resnet_optimizer(model, config):
 
 def create_optimizer(model, config):
     arch_type = config.arch.type.lower()
-    if 'rq-vae' in config.arch.type:
+    if 'rq-transformer' in config.arch.type:
         optimizer = create_resnet_optimizer(model, config.optimizer)
     else:
         raise ValueError(f'{arch_type} invalid..')

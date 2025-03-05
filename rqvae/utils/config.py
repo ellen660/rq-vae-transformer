@@ -131,32 +131,32 @@ def augment_dist_defaults(config, distenv):
 
 def config_setup(args, distenv, config_path, extra_args=()):
 
-    if args.eval:
-        config = load_config(config_path)
-        config = augment_defaults(config)
+    # if args.eval:
+    #     config = load_config(config_path)
+    #     config = augment_defaults(config)
 
-        if hasattr(args, 'test_batch_size'):
-            config.experiment.batch_size = args.test_batch_size
-        if not hasattr(config, 'seed'):
-            config.seed = args.seed
+    #     if hasattr(args, 'test_batch_size'):
+    #         config.experiment.batch_size = args.test_batch_size
+    #     if not hasattr(config, 'seed'):
+    #         config.seed = args.seed
 
-    elif args.resume:
-        config = load_config(config_path)
-        if distenv.world_size != config.runtime.distenv.world_size:
-            raise ValueError("world_size not identical to the resuming config")
-        config.runtime = {'args': vars(args), 'distenv': distenv}
+    # elif args.resume:
+    #     config = load_config(config_path)
+    #     if distenv.world_size != config.runtime.distenv.world_size:
+    #         raise ValueError("world_size not identical to the resuming config")
+    #     config.runtime = {'args': vars(args), 'distenv': distenv}
 
-    else:  # training
-        config_path = args.model_config
-        config = load_config(config_path)
+    # else:  # training
+    config_path = args.model_config
+    config = load_config(config_path)
 
-        extra_config = OmegaConf.from_dotlist(extra_args)
-        config = OmegaConf.merge(config, extra_config)
+    extra_config = OmegaConf.from_dotlist(extra_args)
+    config = OmegaConf.merge(config, extra_config)
 
-        config = augment_defaults(config)
-        config = augment_dist_defaults(config, distenv)
+    config = augment_defaults(config)
+    config = augment_dist_defaults(config, distenv)
 
-        config.seed = args.seed
-        config.runtime = {'args': vars(args), 'extra_config': extra_config, 'distenv': distenv}
+    config.seed = args.seed
+    config.runtime = {'args': vars(args), 'extra_config': extra_config, 'distenv': distenv}
 
     return config

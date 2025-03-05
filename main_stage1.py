@@ -27,7 +27,6 @@ from rqvae.optimizer import create_optimizer, create_scheduler
 from rqvae.utils.utils import set_seed, compute_model_size, get_num_conv_linear_layers
 from rqvae.utils.setup import setup
 
-
 parser = argparse.ArgumentParser()
 
 parser.add_argument('-m', '--model-config', type=str, default='./configs/c10-igpt.yaml')

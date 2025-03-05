@@ -29,6 +29,7 @@ from ..interfaces import Stage2Model
 from .primitives import BatchLinear, TupleEmbedding, LogitMask
 from .attentions import AttentionStack
 from .configs import RQTransformerConfig
+import sys
 
 
 class RQTransformer(Stage2Model):
@@ -36,14 +37,14 @@ class RQTransformer(Stage2Model):
     def __init__(self, config: RQTransformerConfig):
         super().__init__()
 
-        self.config = config = config.copy()
+        self.config = config #= config.copy()
 
-        if len(config.block_size) != 3:
+        if len(config.block_size) != 2:
             raise ValueError("incompatible block size")
         self.block_size = torch.Size(config.block_size)
 
         if isinstance(config.vocab_size, int):
-            config.vocab_size = [config.vocab_size] * config.block_size[2]
+            config.vocab_size = [config.vocab_size] * config.block_size[1]
 
         if config.shared_tok_emb or config.shared_cls_emb:
             # various codebooks sizes are not supported for shared tok or cls embedding
@@ -73,8 +74,8 @@ class RQTransformer(Stage2Model):
                 self.tok_emb = TupleEmbedding(config.vocab_size, config.embed_dim)
 
         self.pos_emb_cond = nn.Parameter(torch.zeros(1, self.block_size_cond, config.embed_dim))
-        self.pos_emb_hw = nn.Parameter(torch.zeros(1, self.block_size[0] * self.block_size[1], config.embed_dim))
-        self.pos_emb_d = nn.Parameter(torch.zeros(1, self.block_size[2], config.embed_dim))
+        self.pos_emb_hw = nn.Parameter(torch.zeros(1, self.block_size[0], config.embed_dim))
+        self.pos_emb_d = nn.Parameter(torch.zeros(1, self.block_size[1], config.embed_dim))
 
         self.pos_emb_cond.data.normal_(mean=0.0, std=0.02)
         self.pos_emb_hw.data.normal_(mean=0.0, std=0.02)
@@ -93,7 +94,7 @@ class RQTransformer(Stage2Model):
                 'linear',
                 nn.Linear(config.embed_dim, config.vocab_size[0])
                 if config.shared_cls_emb else
-                BatchLinear(config.block_size[2], config.embed_dim, max(config.vocab_size))
+                BatchLinear(config.block_size[1], config.embed_dim, max(config.vocab_size))
             ),
             ('logit_mask', LogitMask(config.vocab_size, value=-1e6))
         ]))
@@ -110,28 +111,36 @@ class RQTransformer(Stage2Model):
         xs_emb, _ = model_aux.get_code_emb_with_depth(xs)
         return xs_emb
 
-    def forward(self, xs, model_aux=None, cond=None, amp=False):
-        with autocast(enabled=amp):
+    def forward(self, xs, model_aux=None, cond=None, amp=False, return_embeddings=False, one_hot=False):
+        with torch.amp.autocast(device_type='cuda', enabled=amp):
+            if one_hot:
+                (B,T,D,vocab_size) = xs.shape
+            else:
+                (B, T, D) = xs.shape
 
-            (B, H, W, D) = xs.shape
-
-            xs = xs.reshape(B, H*W, D)
             if cond is None:
                 cond = torch.zeros(B, self.block_size_cond, device=xs.device, dtype=torch.long)
             else:
                 cond = cond.reshape(B, self.block_size_cond)
 
-            seq_len = xs.shape[1]
-            cond_len = cond.shape[1]
+            seq_len = xs.shape[1] 
+            cond_len = cond.shape[1] #1
 
             # compute the embeddings for body
             if self.config.input_emb_vqvae:
                 xs_emb = self.embed_with_model_aux(xs, model_aux)
                 xs_emb = self.input_mlp(xs_emb)
             else:
-                xs_emb = self.tok_emb(xs)
+                if one_hot:
+                    # print(f"{self.tok_emb.weight}")
+                    # print(f"{self.tok_emb.weight.shape}")
+                    # print(f'xs {xs.shape} {xs.dtype}')
+                    # sys.exit()
+                    xs_emb = torch.matmul(xs, self.tok_emb.weight)
+                else:
+                    xs_emb = self.tok_emb(xs)
 
-            conds_emb = self.cond_emb(cond) + self.pos_emb_cond[:, :cond_len, :]
+            conds_emb = self.cond_emb(cond) + self.pos_emb_cond[:, :cond_len, :] #embed transformer
             xs_emb = xs_emb.sum(dim=-2) + self.pos_emb_hw[:, :seq_len, :]
             latents = torch.cat(
                 [
@@ -144,12 +153,13 @@ class RQTransformer(Stage2Model):
             latents = self.embed_drop(latents)
 
             # body transformer
+            # print(f'latents input {latents.shape}') #B, T, embed_dim
             latents = self.body_transformer(latents)
-            spatial_ctx = latents[:, cond_len-1:]
+            spatial_ctx = latents[:, cond_len-1:] #basically T dim
 
             # if cond_len > 1, compute the logits for conditioning sequence.
             if cond_len > 1:
-                cond_ctx = latents[:, :cond_len-1]
+                cond_ctx = latents[:, :cond_len-1] #text or class embedding
                 cond_logits = self.cond_classifier(cond_ctx)
 
             # compute the embeddings for head
@@ -161,7 +171,10 @@ class RQTransformer(Stage2Model):
 
                 depth_ctx = self.head_mlp(depth_ctx)
             else:
-                depth_ctx = self.tok_emb(xs)
+                if one_hot:
+                    depth_ctx = torch.matmul(xs, self.tok_emb.weight)
+                else:
+                    depth_ctx = self.tok_emb(xs)
 
             # NOTE: We are no longer applying spatial positional embedding to depth_ctx.
             # depth_ctx = depth_ctx + self.pos_emb_hw[:, :seq_len, :]
@@ -177,13 +190,20 @@ class RQTransformer(Stage2Model):
             depth_ctx_full = depth_ctx_full + self.pos_emb_d[:, :D, :]
 
             # head transformer & final fc (classifier)
+            # print(f'depth input {depth_ctx_full.shape}') #B*T, D, embed_dim
             head_outputs = self.head_transformer(depth_ctx_full)
-            head_outputs = head_outputs.reshape(B, H, W, D, -1)
+            # print(f'before {head_outputs.shape}') #B*T, D, embed_dim
+            head_outputs = head_outputs.reshape(B, T, D, -1) #B, T, D, embed_dim
+            # print(f'head {head_outputs.shape}') 
 
             seq_logits = self.classifier(head_outputs)
+            # print(s'{seq_logits.shape}') #B, T, D, vocab_size
+            # sys.exit()
 
             if cond_len > 1:
                 return seq_logits, cond_logits  # shape: (B, H, W, D, vocab_size), (B, cond_len-1, vocab_size_cond)
+            elif return_embeddings:
+                return spatial_ctx
             else:
                 return seq_logits
 
@@ -309,7 +329,7 @@ class RQTransformer(Stage2Model):
 
         assert self.block_size == partial_sample.shape[1:]
 
-        (H, W, D) = self.block_size
+        (T, D) = self.block_size
 
         if top_k is None:
             top_k_list = [self.vocab_size[i] for i in range(D)]
@@ -369,13 +389,21 @@ class RQTransformer(Stage2Model):
         return xs
 
     def compute_loss(self, logits, targets, use_soft_target=False):
-
+        # print(f'logits {logits.shape}')
+        # print(f'{targets.shape}')
         logits = logits.reshape(-1, logits.shape[-1])
         if use_soft_target:
             targets = targets.reshape(-1, targets.shape[-1])
+            # print(f'soft')
+            # print(f'{logits.shape}, {targets.shape}')
             loss = soft_target_cross_entropy(logits, targets)
+
         else:
+            targets = targets.long()
             targets = targets.reshape(-1)
+            # print(f'logits {logits.shape}')
+            # print(f'targets {torch.max(targets)} {torch.min(targets)}')
+            # sys.exit()
             loss = F.cross_entropy(logits, targets)
 
         return loss

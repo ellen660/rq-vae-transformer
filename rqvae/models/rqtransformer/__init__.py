@@ -15,6 +15,7 @@
 from .configs import RQTransformerConfig
 from .transformers import RQTransformer
 
-
-def get_rqtransformer(config: RQTransformerConfig):
+def get_rqtransformer(config):
+    # config = RQTransformerConfig.create(config)
+    # print(f'type {config}')
     return RQTransformer(config)
