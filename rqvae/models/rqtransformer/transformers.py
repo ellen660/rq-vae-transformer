@@ -84,8 +84,8 @@ class RQTransformer(Stage2Model):
         self.embed_drop = nn.Dropout(config.embd_pdrop, inplace=True)
 
         # ==== AR modeling layer definitions ====
-        self.body_transformer = AttentionStack(config.body)
-        self.head_transformer = AttentionStack(config.head)
+        self.body_transformer = AttentionStack(config.body, mask=False)
+        self.head_transformer = AttentionStack(config.head, mask=True)
 
         # ==== final fc layer definition ====
         self.classifier = nn.Sequential(OrderedDict([
@@ -110,6 +110,27 @@ class RQTransformer(Stage2Model):
     def embed_with_model_aux(self, xs, model_aux):
         xs_emb, _ = model_aux.get_code_emb_with_depth(xs)
         return xs_emb
+    
+    def get_attention_matrix(self, xs):
+        B, T, D = xs.shape
+        cond = torch.zeros(B, self.block_size_cond, device=xs.device, dtype=torch.long)
+        xs_emb = self.tok_emb(xs)
+
+        seq_len = xs.shape[1] 
+        cond_len = cond.shape[1] #1
+
+        conds_emb = self.cond_emb(cond) + self.pos_emb_cond[:, :cond_len, :] #embed transformer
+        xs_emb = xs_emb.sum(dim=-2) + self.pos_emb_hw[:, :seq_len, :]
+        latents = torch.cat(
+            [
+                conds_emb,
+                xs_emb[:, :-1, :]
+            ],
+            dim=1,
+        )
+        body_attention = self.body_transformer.get_matrix(latents)
+        print(f'shape of body attention {len(body_attention)} {body_attention[0].shape}')
+        return body_attention
 
     def forward(self, xs, model_aux=None, cond=None, amp=False, return_embeddings=False, one_hot=False):
         with torch.amp.autocast(device_type='cuda', enabled=amp):
@@ -154,7 +175,9 @@ class RQTransformer(Stage2Model):
 
             # body transformer
             # print(f'latents input {latents.shape}') #B, T, embed_dim
+            print(f'###########body transformer###############')
             latents = self.body_transformer(latents)
+            print(f'###########done body transformer###############')
             spatial_ctx = latents[:, cond_len-1:] #basically T dim
 
             # if cond_len > 1, compute the logits for conditioning sequence.
@@ -191,7 +214,9 @@ class RQTransformer(Stage2Model):
 
             # head transformer & final fc (classifier)
             # print(f'depth input {depth_ctx_full.shape}') #B*T, D, embed_dim
+            print(f'###########head transformer###############')
             head_outputs = self.head_transformer(depth_ctx_full)
+            print(f'###########done head transformer###############')
             # print(f'before {head_outputs.shape}') #B*T, D, embed_dim
             head_outputs = head_outputs.reshape(B, T, D, -1) #B, T, D, embed_dim
             # print(f'head {head_outputs.shape}') 

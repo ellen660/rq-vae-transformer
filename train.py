@@ -44,6 +44,14 @@ import functools
     # """ Wrapper to handle optional non-tensor arguments. """
     # return module(xs, cond=cond, model_aux=model_aux, amp=amp, return_embeddings=return_embeddings, one_hot=one_hot)
 
+
+#STEPS 
+#Masked language modeling
+    #Add a MASK token
+    #Mask all 32 tokens 
+    #Loss is different 
+    #Remove mask for spatial 
+
 def predict_future(model, logits, tau=0.1):
     #testing
     soft_tokens = F.gumbel_softmax(logits[:, 1:, :, :], tau, hard=False)
@@ -70,7 +78,7 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
         #First pass
         logits = model(xs=x, amp=config.common.amp)  #B, T, D, vocab_size
         # print(f'logits {logits.shape}') #B, T, D, vocab_size
-        loss += model.module.compute_loss(logits, target, use_soft_target=config.loss.soft)
+        loss += model.module.compute_loss(logits[:-1], target[1:], use_soft_target=config.loss.soft)
 
         #Predict future steps
 
@@ -81,15 +89,15 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
             
         # Predict two steps ahead
         logits2 = predict_future(model, logits, tau=0.1)
-        loss += model.module.compute_loss(logits2, target[:, 1:, :], use_soft_target=config.loss.soft)
+        loss += model.module.compute_loss(logits2[:-1], target[:, 2:, :], use_soft_target=config.loss.soft)
 
         # Predict three steps ahead
         logits3 = predict_future(model, logits2, tau=0.1)
-        loss += model.module.compute_loss(logits3, target[:, 2:, :], use_soft_target=config.loss.soft)
+        loss += model.module.compute_loss(logits3[:-1], target[:, 3:, :], use_soft_target=config.loss.soft)
 
         # Predict four steps ahead
         logits4 = predict_future(model, logits3, tau=0.1)
-        loss += model.module.compute_loss(logits4, target[:, 3:, :], use_soft_target=config.loss.soft)
+        loss += model.module.compute_loss(logits4[:-1], target[:, 4:, :], use_soft_target=config.loss.soft)
             
         optimizer.zero_grad()  # Reset gradients
         # scaler.scale(loss).backward()  # Backpropagatio
@@ -210,7 +218,7 @@ def init_logger(log_dir, resume=False):
     return writer
 
 def init_dataset(config):
-    train_dataset = Shhs2Dataset(mode="train", cv=config.dataset.cv, max_length=config.dataset.max_length)
+    train_dataset = Shhs2Dataset(mode="train", cv=config.dataset.cv, max_length=config.dataset.max_length, masking=config.dataset.masking)
     val_dataset = Shhs2Dataset(mode="val", cv=config.dataset.cv, max_length=config.dataset.max_length)
     
     train_loader = DataLoader(train_dataset, batch_size=config.dataset.batch_size, shuffle=True, num_workers=config.dataset.num_workers)

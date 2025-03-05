@@ -41,6 +41,30 @@ from encodec import EncodecModel
 from encodec.my_code.spectrogram_loss import ReconstructionLoss, ReconstructionLosses
 
 @torch.no_grad()
+def plot_attention_matrix(model, val_loader, config, save_dir):
+    model.eval()
+    progress_bar = tqdm(val_loader, desc=f"Visualize Attention", unit="batch")
+    for i, item in enumerate(progress_bar):
+        if i>=10:
+            break
+        x = item["x"]
+        x = x.to(device)
+
+        attention_matrix = model.get_attention_matrix(x)
+        fig, axs = plt.subplots(4, 3, figsize=(20, 20), sharex=False)
+        axs = axs.flatten()
+        for i, layer in enumerate(attention_matrix):
+            # breakpoint()
+            attn_weights = layer[0].detach().cpu().numpy()
+            # attn_weights = (attn_weights - np.min(attn_weights)) / (np.max(attn_weights) - np.min(attn_weights))
+            # attn_weights = np.log1p(attn_weights)
+            axs[i].pcolormesh(attn_weights, cmap='coolwarm', aspect='auto')#0th head
+            axs[i].set_title(f'Layer {i} Head 0'), #vmin=0, vmax=0.2, subtravt one and two 
+        fig.tight_layout()
+        fig.savefig(f'{save_dir}/shhs2/{item["filename"][0]}_attention.png')
+        # breakpoint()
+
+@torch.no_grad()
 def test(model, rvqvae, val_loader, config, save_dir):
     model.eval()
     rvqvae.eval()
@@ -241,13 +265,13 @@ def set_args():
     parser = argparse.ArgumentParser()
     
     parser.add_argument("--config", type=str, default="test")
-    # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250218/body_12layers_16heads_head_12layers_16heads")
-    parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout")
+    parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250218/body_12layers_16heads_head_12layers_16heads")
+    # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout")
 
     return parser.parse_args()
 
 if __name__ == "__main__":
-    save_dir = f'/data/scratch/ellen660/rq-vae-transformer/predictions/embeddings_4'
+    save_dir = f'/data/scratch/ellen660/rq-vae-transformer/predictions/embeddings'
     os.makedirs(save_dir, exist_ok=True)
     args = set_args()
     user_name = os.getlogin()
@@ -286,58 +310,6 @@ if __name__ == "__main__":
     print("checkpoint loaded successfully")
 
     # test(model, model_rqvae, val_loader, config, save_dir)
-    generate_embeddings(model, model_rqvae, test_loader, config, save_dir)
+    # generate_embeddings(model, model_rqvae, test_loader, config, save_dir)
+    plot_attention_matrix(model, val_loader, config, save_dir)
 
-
-# def plot_most_frequent_signals(ds_name, pivot, model, save_dir, config, device):
-#     num_codebooks = int(100 * config.model.target_bandwidths[0])
-#     # print(f'num codebooks {num_codebooks}')
-#     codes = []
-#     for codebook_idx in range(num_codebooks):
-#         most_common_code = pivot[codebook_idx][0]
-#         codes.append(most_common_code)
-#     codes = torch.tensor(codes).unsqueeze(1).unsqueeze(2) #N, B, T
-#     codes = codes.to(device)
-
-#     # Plot histograms for each feature
-#     fig, axes = plt.subplots(8, 4, figsize=(20, 15))  # 8 rows, 4 columns for 32 features
-#     axes = axes.flatten()
-
-#     prev = None
-#     for n_q in range(1,num_codebooks+1):
-#         quantized = model.quantizer.decode(codes, n_q=n_q)
-#         output = model.decoder(quantized).detach().cpu().numpy().squeeze()
-#         if prev is not None:
-#             diff = output - prev 
-#         else:
-#             diff = output
-#         mean = np.mean(diff)
-#         std = np.std(diff)
-#         time = np.arange(0, 300)
-#         axes[n_q-1].plot(time, diff)
-#         axes[n_q-1].set_title(f"Signal n_q={n_q} - Signal n_q={n_q-1}, mean {float(f'{mean:.6f}')}, std {float(f'{std:.6f}')}")
-#         axes[n_q-1].set_ylim(-0.5, 0.5)
-#         prev = output
-    
-#     plt.tight_layout()
-#     save_path = os.path.join(save_dir, ds_name, f"{ds_name}_most_common_signals.png")  # Save as PNG
-#     plt.savefig(save_path, dpi=300, bbox_inches="tight")  # High-quality save
-#     plt.close()  # Close the figure to free memory
-
-#     #plot the most common signal 
-#     quantized = model.quantizer.decode(codes, n_q=num_codebooks)
-#     output = model.decoder(quantized).detach().cpu().numpy().squeeze()
-#     fig, ax = plt.subplots()  # Create a single axes (not multiple)
-#     # Plot only the specified axes
-#     time = np.arange(0, 300)
-#     ax.plot(time, output)
-#     ax.set_title(f"{ds_name}_generic_signal")
-#     ax.set_ylim(-2, 2)
-#     save_path = os.path.join(save_dir, ds_name, f"{ds_name}_generic_signal.png")  # Save as PNG
-#     plt.savefig(save_path, dpi=300, bbox_inches="tight")  # High-quality save
-#     plt.close()  # Close the figure to free memory
-
-#     print(f"Finished processing {ds_name}")
-
-
-    

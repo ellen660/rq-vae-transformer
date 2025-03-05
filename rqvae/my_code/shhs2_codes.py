@@ -22,16 +22,19 @@ We also filter out nights where the breathing signal is distorted or nonexistent
 fns_to_ignore_out = []
 
 class Shhs2Dataset(Dataset):
-    root = f'/data/scratch/ellen660/encodec/encodec/predictions/142145/shhs2'
+    root = f'/data/scratch/ellen660/encodec/encodec/predictions/20250304/shhs2'
     NumCv = 4
         
-    def __init__(self, mode = "train", cv = 0, max_length = 2 * 60 * 7, soft=False): #1 sample every 30 seconds -> 120 samplse/hour
+    def __init__(self, mode = "train", cv = 0, max_length = 2 * 60 * 7, soft=False, masking=True, vocab_size=512): #1 sample every 30 seconds -> 120 samplse/hour
         self.channels = {"thorax": 1.0}
         self.mode = mode
         assert self.mode in ['train', 'test', 'val'], 'Only support train, val or test mode'
         self.cv = cv
         self.ds_dir = self.root
         self.max_length = max_length
+        self.soft = soft
+        self.masking = masking
+        self.vocab_size = vocab_size
 
         # dataset preparation (only select the intersection between all channels)
         file_list = set()
@@ -130,6 +133,36 @@ class Shhs2Dataset(Dataset):
         gender -= 1 #make gender 0 or 1 instead
         return torch.tensor(gender, dtype=torch.float32)
 
+    def mask_input(self, input_tokens):
+        """
+        Bert masking across time dimension
+        """
+        #input shape is (D,T)
+        D, T = input_tokens.shape
+
+        # Define the special [MASK] token
+        MASK_TOKEN = self.vocab_size   
+
+        # Create a mask: 15% of tokens should be masked
+        mask = torch.rand(input_tokens.shape[1]) < 0.15  # 15% probability
+
+        masked_input = input_tokens.clone()
+        random_tokens = torch.randint(0, self.vocab_size, input_tokens.shape)
+        replace_with_mask = torch.rand(1, T) < 0.8  # Shape (1, T)
+        replace_with_random = torch.rand(1, T) < 0.5  # Shape (1, T)
+
+        # Efficient masking using broadcasting
+        masked_input[:, mask] = torch.where(
+            replace_with_mask[:, mask], 
+            MASK_TOKEN, 
+            torch.where(
+                replace_with_random[:, mask], 
+                random_tokens[:, mask], 
+                input_tokens[:, mask]
+            )
+        )
+        return masked_input
+
     def __getitem__(self, idx):
         filename = self.file_list[idx]
 
@@ -157,6 +190,9 @@ class Shhs2Dataset(Dataset):
             codes = codes[:, start_idx:start_idx+self.max_length]
             if self.soft:
                 soft_codes = soft_codes[:, start_idx:start_idx+self.max_length, :]
+            if self.masking:
+                print(f'masking input')
+                codes = self.mask_input(codes)
         elif self.mode == "val":
             codes = codes[:, :self.max_length]
             if self.soft:
@@ -181,6 +217,8 @@ class Shhs2Dataset(Dataset):
 
         codes = torch.tensor(codes, dtype=torch.int)
         codes = codes.permute(1, 0)  # Swaps D and T -> New shape: (B, T, D)
+        # print(f'min {codes.min()}, max {codes.max()}')
+        assert codes.max() < self.vocab_size, f"codes max {codes.max()} is greater than vocab size {self.vocab_size}"
         if self.soft:
             soft_codes = torch.tensor(soft_codes, dtype=torch.float32)
             soft_codes = soft_codes.permute(1, 0, 2)
@@ -207,11 +245,46 @@ class Shhs2Dataset(Dataset):
         if self.soft:
             item["y"] = soft_codes
         else:
-            item["y"] = None
+            item["y"] = torch.zeros(1)
 
         return item
 
 def main():
+
+    def mask_input(input_tokens):
+        """
+        Bert masking across time dimension
+        """
+        #input shape is (D,T)=(32,840)
+        D, T = input_tokens.shape
+
+        # Define the special [MASK] token
+        MASK_TOKEN = 512
+
+        # Create a mask: 15% of tokens should be masked
+        mask = torch.rand(input_tokens.shape[1]) < 0.15  # 15% probability
+
+        masked_input = input_tokens.clone()
+        random_tokens = torch.randint(0, 512, input_tokens.shape)
+        replace_with_mask = torch.rand(1, T) < 0.8  # Shape (1, T)
+        replace_with_random = torch.rand(1, T) < 0.5  # Shape (1, T)
+
+        # Efficient masking using broadcasting
+        masked_input[:, mask] = torch.where(
+            replace_with_mask[:, mask], 
+            MASK_TOKEN, 
+            torch.where(
+                replace_with_random[:, mask], 
+                random_tokens[:, mask], 
+                input_tokens[:, mask]
+            )
+        )
+        return mask, masked_input
+
+    input_tokens = torch.randint(0, 512, (32, 840))
+    mask, masked_input = mask_input(input_tokens)
+    breakpoint()
+    
     dataset = Shhs2Dataset(mode="val")
     print(f"Dataset size is {len(dataset)}")
     dataloader = DataLoader(dataset, batch_size=8, num_workers = 4, shuffle=True)
