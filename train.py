@@ -37,13 +37,6 @@ from dataclasses import fields, is_dataclass
 import torch.utils.checkpoint as checkpoint
 import functools
 
-# def checkpointed_forward(module, *inputs):
-#     return checkpoint.checkpoint(module, *inputs)
-
-# def checkpointed_forward(module, xs, cond=None, model_aux=None, amp=False, return_embeddings=False, one_hot=False):
-    # """ Wrapper to handle optional non-tensor arguments. """
-    # return module(xs, cond=cond, model_aux=model_aux, amp=amp, return_embeddings=return_embeddings, one_hot=one_hot)
-
 def predict_future(model, logits, tau=0.1):
     soft_tokens = F.gumbel_softmax(logits[:, 1:, :, :], tau, hard=False)
     hard_tokens = torch.argmax(logits[:, 1:, :, :], dim=-1)
@@ -168,9 +161,7 @@ def load_checkpoint(model, optimizer, scheduler, path, device):
 
 #Logger for tensorboard
 def logger(writer, metrics, phase, epoch_index):
-
     for key, value in metrics.items():
-
         if type(value)!= float and len(value.shape) > 0 and value.shape[0] == 2:
             value = value[1]
         elif type(value)!= float and len(value.shape) > 0 and value.shape[0] > 2:
@@ -199,13 +190,11 @@ def load_config(filepath, log_dir=None):
 
 def init_logger(log_dir, resume=False):
     print(f'log_dir: {log_dir}')
-    
     if resume:
         # Resume logging
         writer = SummaryWriter(log_dir=log_dir, purge_step=None)  # Prevents overwriting
     else:
-        writer = SummaryWriter(log_dir=log_dir)
-
+        writer = SummaryWriter(log_dir=log_dir)d
     return writer
 
 def init_dataset(config):
@@ -327,11 +316,7 @@ if __name__ == "__main__":
         config = load_config("rqvae/my_code/%s.yaml" % args.config, log_dir)
 
     writer = init_logger(log_dir, resume)
-
-    # torch.manual_seed(config.common.seed)
-    # random.seed(config.common.seed)
     set_seed(config.common.seed)
-    # data_parallel = config.distributed.data_parallel
     device = torch.device("cuda")
     # breakpoint()
 
@@ -348,7 +333,6 @@ if __name__ == "__main__":
     #simple scheduler
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.common.max_epoch)
     scheduler = LinearWarmupCosineAnnealingLR(optimizer, warmup_epochs=config.optimizer.warmup.epoch, max_epochs=config.common.max_epoch)
-
     # Mixed precision scaler
     scaler = torch.amp.GradScaler(device=device)
     # optimizer = optim.AdamW(model.parameters(), lr=float(config.optimization.lr), betas=(0.8, 0.9))
@@ -366,8 +350,5 @@ if __name__ == "__main__":
             test(metrics, epoch, model, val_loader, config, writer, scaler)
         # save checkpoint and epoch
         if epoch % config.common.save_ckpt_freq == 1:
-            # torch.save(model.module.state_dict(), f"{log_dir}/model.pth")
-            print(f'saving')
             save_checkpoint(model, optimizer, scheduler, epoch, f"{log_dir}/model.pth")
 
-            #TODO: set up resume
