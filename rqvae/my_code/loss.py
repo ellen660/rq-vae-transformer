@@ -8,13 +8,12 @@ def compute_loss(logits, targets, soft=True, mask=None):
     if not soft:
         targets = targets.long()
     B, T, D, N = logits.shape
-
-    #mask shape is 840
+    #mask shape is B, T, D
 
     metrics = {}
     auroc = torchmetrics.AUROC(task="multiclass", num_classes=512).to(logits.device)
-    top1_acc = torchmetrics.Accuracy(task="multiclass", num_classes=N, top_k=1).to(logits.device)
-    top5_acc = torchmetrics.Accuracy(task="multiclass", num_classes=N, top_k=5).to(logits.device)
+    top1_acc = torchmetrics.Accuracy(task="multiclass", num_classes=N, top_k=1, ignore_index=-1).to(logits.device)
+    top5_acc = torchmetrics.Accuracy(task="multiclass", num_classes=N, top_k=5, ignore_index=-1).to(logits.device)
     auroc_per_depth = []
     top_1 = []
     top_5 = []
@@ -27,9 +26,14 @@ def compute_loss(logits, targets, soft=True, mask=None):
             target_d = targets[:, :, d, :].reshape(B * T, N)
         else:
             target_d = targets[:, :, d].reshape(B * T)  # (B*T,)
+        # print(f'target_d {target_d}')
+        if mask is not None:
+            # print(f'maskig')
+            mask_d = mask[:, :, d].reshape(B * T)
+            target_d[~mask_d] = -1
         
         # Compute loss
-        loss = F.cross_entropy(logit_d, target_d)
+        loss = F.cross_entropy(logit_d, target_d, ignore_index=-1)
         metrics[f'Cross Entropy Codebook {d}'] = loss
 
         # Compute AUROC

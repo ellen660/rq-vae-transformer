@@ -109,7 +109,7 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
 
         epoch_loss += loss.item()
         progress_bar.set_postfix(loss=loss.item())
-        losses = compute_loss(logits, target, soft=False)
+        losses = compute_loss(logits, target, soft=False, mask=mask)
         metrics.fill_metrics(losses, epoch*len(train_loader) + i)
 
     scheduler.step()  # Update learning rate
@@ -143,7 +143,7 @@ def test(metrics, epoch, model, val_loader, config, writer, scaler):
         
         epoch_loss += loss.item()
         progress_bar.set_postfix(loss=loss.item())
-        losses = compute_loss(logits, target, soft=False)
+        losses = compute_loss(logits, target, soft=False, mask=mask)
         metrics.fill_metrics(losses, epoch*len(val_loader) + i)
 
     loss_per_epoch = epoch_loss/len(val_loader)
