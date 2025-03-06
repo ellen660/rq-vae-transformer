@@ -58,7 +58,7 @@ def plot_attention_matrix(model, val_loader, config, save_dir):
             attn_weights = layer[0].detach().cpu().numpy()
             # attn_weights = (attn_weights - np.min(attn_weights)) / (np.max(attn_weights) - np.min(attn_weights))
             # attn_weights = np.log1p(attn_weights)
-            axs[i].pcolormesh(attn_weights, cmap='viridis', vmin=0, vmax=0.2)#0th head
+            axs[i].pcolormesh(attn_weights, cmap='viridis', vmin=0.0001, vmax=0.1)#0th head
             axs[i].set_title(f'Layer {i} Head 0'), #vmin=0, vmax=0.2, subtravt one and two 
         
         fig.tight_layout()
@@ -148,7 +148,7 @@ def generate_embeddings(model, rvqvae, data_loader, config, save_dir):
         x = item["x"]
         x = x.to(device)
 
-        embeddings = model(x, return_embeddings=True)  # Forward pass, spatial_ctx
+        embeddings = model(x, return_embeddings=True)  # Forward pass, spatial_ctx, no embedding dropout...
         # print(f'embedding shape {embeddings.shape}')
         x = x.permute(2, 0, 1)
         quantized_actual = rvqvae.quantizer.decode(x) #D, B, T
@@ -264,20 +264,20 @@ def init_rqvae_model(config):
 
 def set_args():
     parser = argparse.ArgumentParser()
-    
-    parser.add_argument("--config", type=str, default="test")
-    parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250218/body_12layers_16heads_head_12layers_16heads")
-    # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout")
-
-    return parser.parse_args()
+    # parser.add_argument("--config", type=str, default="test")
+    # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250218/body_12layers_16heads_head_12layers_16heads") #1step
+    # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout") #4step
+    parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/mlm/20250306/093732/body_12layers_16heads_head_12layers_16heads_0.0dropout") #mlm
 
 if __name__ == "__main__":
-    save_dir = f'/data/scratch/ellen660/rq-vae-transformer/predictions/embeddings'
+    save_dir = f'/data/scratch/ellen660/rq-vae-transformer/predictions/mlm'
     os.makedirs(save_dir, exist_ok=True)
     args = set_args()
     user_name = os.getlogin()
+    # breakpoint()
 
-    checkpoint_path = args.model_path
+    # checkpoint_path = args.model_path
+    checkpoint_path = f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/mlm/20250306/093732/body_12layers_16heads_head_12layers_16heads_0.0dropout"
 
     # Load the YAML file
     config = load_config(f"{checkpoint_path}/config.yaml")
@@ -313,4 +313,3 @@ if __name__ == "__main__":
     # test(model, model_rqvae, val_loader, config, save_dir)
     # generate_embeddings(model, model_rqvae, test_loader, config, save_dir)
     plot_attention_matrix(model, val_loader, config, save_dir)
-
