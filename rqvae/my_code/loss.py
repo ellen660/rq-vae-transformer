@@ -4,10 +4,12 @@ import sys
 import torch
 
 @torch.no_grad()
-def compute_loss(logits, targets, soft=True):
+def compute_loss(logits, targets, soft=True, mask=None):
     if not soft:
         targets = targets.long()
     B, T, D, N = logits.shape
+
+    #mask shape is 840
 
     metrics = {}
     auroc = torchmetrics.AUROC(task="multiclass", num_classes=512).to(logits.device)

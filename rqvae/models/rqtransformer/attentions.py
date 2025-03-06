@@ -86,7 +86,6 @@ class MultiSelfAttention(nn.Module):
         # Tensor shape below: (B * nh, T, hs) X (B * nh, hs, T_past+T) -> (B * nh, T, T_past+T)
         att = torch.bmm(q, (k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1))))
         if self.mask:
-            print(f'masking attention')
             mask = torch.tril(torch.ones(T_past+T, T_past+T, device=x.device, dtype=torch.bool))
             mask = mask.view(1, T_past+T, T_past+T)
             att = att.masked_fill(~mask[:, T_past:T_past+T, :T_past+T], float('-inf'))

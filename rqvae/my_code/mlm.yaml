@@ -18,7 +18,7 @@ dataset:
   debug: False
   thorax: 1.
   abdominal: 0.
-  masking: False
+  masking: True
 
 arch:
   type: rq-transformer
@@ -37,9 +37,9 @@ arch:
 
   vocab_size_cond: 1 #SOS
   block_size_cond: 1
-  vocab_size: 512 #number of bins
+  vocab_size: 513 #number of bins
 
-  use_spatial_masking: True #if false, then bidrectional
+  use_spatial_masking: False #if false, then bidrectional
 
   embd_pdrop: 0.0 #default 0.0, 
 

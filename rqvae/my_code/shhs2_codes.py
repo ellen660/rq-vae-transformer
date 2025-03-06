@@ -21,11 +21,19 @@ We also filter out nights where the breathing signal is distorted or nonexistent
 """
 fns_to_ignore_out = []
 
+#Changes for MLM
+#Added masking across time , 
+#80% of the time, replace with [MASK] token
+#10% of the time, replace with random token
+#10% of the time, keep the original token
+#This is done for 15% of the tokens
+#Masking both the training and validation
+
 class Shhs2Dataset(Dataset):
-    root = f'/data/scratch/ellen660/encodec/encodec/predictions/20250304/shhs2'
+    root = f'/data/scratch/ellen660/encodec/encodec/predictions/142145/shhs2'
     NumCv = 4
         
-    def __init__(self, mode = "train", cv = 0, max_length = 2 * 60 * 7, soft=False, masking=True, vocab_size=512): #1 sample every 30 seconds -> 120 samplse/hour
+    def __init__(self, mode = "train", cv = 0, max_length = 2 * 60 * 7, soft=False, masking=True, vocab_size=512, debug=False): #1 sample every 30 seconds -> 120 samplse/hour
         self.channels = {"thorax": 1.0}
         self.mode = mode
         assert self.mode in ['train', 'test', 'val'], 'Only support train, val or test mode'
@@ -35,6 +43,7 @@ class Shhs2Dataset(Dataset):
         self.soft = soft
         self.masking = masking
         self.vocab_size = vocab_size
+        self.debug = debug
 
         # dataset preparation (only select the intersection between all channels)
         file_list = set()
@@ -102,19 +111,9 @@ class Shhs2Dataset(Dataset):
         return train_files, val_files
 
     def __len__(self):
+        if self.debug:
+            return 96
         return len(self.file_list)
-    
-    # def process_signal(self, signal, fs):
-    #     assert fs == 200, f"fs is not 200 but {fs}"
-    #     signal, _, _ = detect_motion_iterative(signal, fs)
-    #     signal = signal_crop(signal)
-    #     signal = norm_sig(signal)
-
-    #     if fs != 10:
-    #         signal = zoom(signal, 10/fs)
-    #         fs = 10
-
-    #     return signal
         
     def get_gender_label(self, idx, file_list=None):
         """
@@ -161,7 +160,7 @@ class Shhs2Dataset(Dataset):
                 input_tokens[:, mask]
             )
         )
-        return masked_input
+        return mask, masked_input
 
     def __getitem__(self, idx):
         filename = self.file_list[idx]
@@ -190,9 +189,6 @@ class Shhs2Dataset(Dataset):
             codes = codes[:, start_idx:start_idx+self.max_length]
             if self.soft:
                 soft_codes = soft_codes[:, start_idx:start_idx+self.max_length, :]
-            if self.masking:
-                print(f'masking input')
-                codes = self.mask_input(codes)
         elif self.mode == "val":
             codes = codes[:, :self.max_length]
             if self.soft:
@@ -215,10 +211,11 @@ class Shhs2Dataset(Dataset):
         else:
             raise ValueError(f"Invalid mode: {self.mode}")
 
-        codes = torch.tensor(codes, dtype=torch.int)
-        codes = codes.permute(1, 0)  # Swaps D and T -> New shape: (B, T, D)
-        # print(f'min {codes.min()}, max {codes.max()}')
+        codes = torch.tensor(codes, dtype=torch.long)
         assert codes.max() < self.vocab_size, f"codes max {codes.max()} is greater than vocab size {self.vocab_size}"
+        mask, masked_input = self.mask_input(codes)
+        codes = codes.permute(1, 0)  # Swaps D and T -> New shape: (B, T, D)
+        masked_input = masked_input.permute(1, 0)
         if self.soft:
             soft_codes = torch.tensor(soft_codes, dtype=torch.float32)
             soft_codes = soft_codes.permute(1, 0, 2)
@@ -228,6 +225,8 @@ class Shhs2Dataset(Dataset):
         item = {
             "x": None,
             # "y": soft_codes,
+            "masked_input": masked_input,
+            "mask": mask,
             "gender": gender,
             "filename": filename,
             "selected_channel": selected_channel

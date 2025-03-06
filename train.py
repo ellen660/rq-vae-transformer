@@ -37,14 +37,6 @@ from dataclasses import fields, is_dataclass
 import torch.utils.checkpoint as checkpoint
 import functools
 
-# def checkpointed_forward(module, *inputs):
-#     return checkpoint.checkpoint(module, *inputs)
-
-# def checkpointed_forward(module, xs, cond=None, model_aux=None, amp=False, return_embeddings=False, one_hot=False):
-    # """ Wrapper to handle optional non-tensor arguments. """
-    # return module(xs, cond=cond, model_aux=model_aux, amp=amp, return_embeddings=return_embeddings, one_hot=one_hot)
-
-
 #STEPS 
 #Masked language modeling
     #Add a MASK token
@@ -66,19 +58,23 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
     progress_bar = tqdm(train_loader, desc=f"Training Epoch {epoch}", unit="batch")
 
     for i, item in enumerate(progress_bar):
-        x, y = item["x"], item["y"]
-        x = x.to(device)
-        if config.loss.soft:
-            target = y.to(device)
+        if config.dataset.masking:
+            x = item["masked_input"].to(device)
         else:
-            target = x
-        # print(f'x shape: {x.shape} {x.dtype}') #B, T, D
+            x = item["x"].to(device)
+        target = item["x"].to(device)
+
+        mask = item['mask'].unsqueeze(-1).expand(-1, -1, 32)
+        mask = mask.to(device)
+        # print(f'mask shape: {mask.shape}')
+
+        # print(f'x shape: {x.shape}, target shape: {target.shape}')
+        # print(f'{item["mask"].shape}') #B, T
         loss = 0
         
         #First pass
         logits = model(xs=x, amp=config.common.amp)  #B, T, D, vocab_size
-        # print(f'logits {logits.shape}') #B, T, D, vocab_size
-        loss += model.module.compute_loss(logits[:-1], target[1:], use_soft_target=config.loss.soft)
+        loss += model.module.compute_loss(logits[:, :-1, :, :], target[:, 1:, :], use_soft_target=config.loss.soft, mask=mask[:, 1:, :])
 
         #Predict future steps
 
@@ -88,16 +84,16 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
             # logits = logits_i
             
         # Predict two steps ahead
-        logits2 = predict_future(model, logits, tau=0.1)
-        loss += model.module.compute_loss(logits2[:-1], target[:, 2:, :], use_soft_target=config.loss.soft)
+        # logits2 = predict_future(model, logits, tau=0.1)
+        # loss += model.module.compute_loss(logits2[:, :-1, :, :], target[:, 2:, :], use_soft_target=config.loss.soft)
 
-        # Predict three steps ahead
-        logits3 = predict_future(model, logits2, tau=0.1)
-        loss += model.module.compute_loss(logits3[:-1], target[:, 3:, :], use_soft_target=config.loss.soft)
+        # # Predict three steps ahead
+        # logits3 = predict_future(model, logits2, tau=0.1)
+        # loss += model.module.compute_loss(logits3[:, :-1, :, :], target[:, 3:, :], use_soft_target=config.loss.soft)
 
-        # Predict four steps ahead
-        logits4 = predict_future(model, logits3, tau=0.1)
-        loss += model.module.compute_loss(logits4[:-1], target[:, 4:, :], use_soft_target=config.loss.soft)
+        # # Predict four steps ahead
+        # logits4 = predict_future(model, logits3, tau=0.1)
+        # loss += model.module.compute_loss(logits4[:, :-1, :, :], target[:, 4:, :], use_soft_target=config.loss.soft)
             
         optimizer.zero_grad()  # Reset gradients
         # scaler.scale(loss).backward()  # Backpropagatio
@@ -112,7 +108,7 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
 
         epoch_loss += loss.item()
         progress_bar.set_postfix(loss=loss.item())
-        losses = compute_loss(logits, x, soft=False)
+        losses = compute_loss(logits, target, soft=False)
         metrics.fill_metrics(losses, epoch*len(train_loader) + i)
 
     scheduler.step()  # Update learning rate
@@ -132,19 +128,21 @@ def test(metrics, epoch, model, val_loader, config, writer, scaler):
     progress_bar = tqdm(val_loader, desc=f"Validation Epoch {epoch}", unit="batch")
 
     for i, item in enumerate(progress_bar):
-        x, y= item["x"], item["y"]
-        x = x.to(device)
-        if config.loss.soft:
-            target = y.to(device)
+        if config.dataset.masking:
+            x = item["masked_input"].to(device)
         else:
-            target = x
+            x = item["x"].to(device)
+        target = item["x"].to(device)
+
+        mask = item['mask'].unsqueeze(-1).expand(-1, -1, 32)
+        mask = mask.to(device)
 
         logits = model(x)  # Forward pass
-        loss = model.module.compute_loss(logits, target, use_soft_target=config.loss.soft)
+        loss = model.module.compute_loss(logits, target, use_soft_target=config.loss.soft, mask=mask)
         
         epoch_loss += loss.item()
         progress_bar.set_postfix(loss=loss.item())
-        losses = compute_loss(logits, x, soft=False)
+        losses = compute_loss(logits, target, soft=False)
         metrics.fill_metrics(losses, epoch*len(val_loader) + i)
 
     loss_per_epoch = epoch_loss/len(val_loader)
@@ -177,9 +175,7 @@ def load_checkpoint(model, optimizer, scheduler, path, device):
 
 #Logger for tensorboard
 def logger(writer, metrics, phase, epoch_index):
-
     for key, value in metrics.items():
-
         if type(value)!= float and len(value.shape) > 0 and value.shape[0] == 2:
             value = value[1]
         elif type(value)!= float and len(value.shape) > 0 and value.shape[0] > 2:
@@ -208,18 +204,15 @@ def load_config(filepath, log_dir=None):
 
 def init_logger(log_dir, resume=False):
     print(f'log_dir: {log_dir}')
-    
     if resume:
-        # Resume logging
         writer = SummaryWriter(log_dir=log_dir, purge_step=None)  # Prevents overwriting
     else:
         writer = SummaryWriter(log_dir=log_dir)
-
     return writer
 
 def init_dataset(config):
-    train_dataset = Shhs2Dataset(mode="train", cv=config.dataset.cv, max_length=config.dataset.max_length, masking=config.dataset.masking)
-    val_dataset = Shhs2Dataset(mode="val", cv=config.dataset.cv, max_length=config.dataset.max_length)
+    train_dataset = Shhs2Dataset(mode="train", cv=config.dataset.cv, max_length=config.dataset.max_length, masking=config.dataset.masking, debug=config.dataset.debug)
+    val_dataset = Shhs2Dataset(mode="val", cv=config.dataset.cv, max_length=config.dataset.max_length, masking=config.dataset.masking, debug=config.dataset.debug)
     
     train_loader = DataLoader(train_dataset, batch_size=config.dataset.batch_size, shuffle=True, num_workers=config.dataset.num_workers)
     val_loader = DataLoader(val_dataset, batch_size=config.dataset.batch_size, shuffle=False, num_workers=config.dataset.num_workers)
@@ -296,9 +289,7 @@ def init_model(config):
         return dataclass_type(**filtered_dict)
 
     rqtransformer = recursive_namespace_to_dataclass(config.arch, RQTransformerConfig)
-    # breakpoint()
     model, model_ema = create_model(rqtransformer, ema=config.arch.ema is not None)
-    # breakpoint()
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Model Total number of parameters: {total_params}")
     print(f'model {model}')
@@ -308,7 +299,7 @@ def init_model(config):
 def set_args():
     parser = argparse.ArgumentParser()
     
-    parser.add_argument("--config", type=str, default="test")
+    parser.add_argument("--config", type=str, default="mlm")
     parser.add_argument("--resume_from", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250217/101518/no")
 
     return parser.parse_args()
@@ -336,13 +327,8 @@ if __name__ == "__main__":
         config = load_config("rqvae/my_code/%s.yaml" % args.config, log_dir)
 
     writer = init_logger(log_dir, resume)
-
-    # torch.manual_seed(config.common.seed)
-    # random.seed(config.common.seed)
     set_seed(config.common.seed)
-    # data_parallel = config.distributed.data_parallel
     device = torch.device("cuda")
-    # breakpoint()
 
     metrics_args = MetricsArgs(num_classes=config.arch.vocab_size, device=device)
     metrics = Metrics(metrics_args)
@@ -357,7 +343,6 @@ if __name__ == "__main__":
     #simple scheduler
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.common.max_epoch)
     scheduler = LinearWarmupCosineAnnealingLR(optimizer, warmup_epochs=config.optimizer.warmup.epoch, max_epochs=config.common.max_epoch)
-
     # Mixed precision scaler
     scaler = torch.amp.GradScaler(device=device)
     # optimizer = optim.AdamW(model.parameters(), lr=float(config.optimization.lr), betas=(0.8, 0.9))
@@ -375,8 +360,4 @@ if __name__ == "__main__":
             test(metrics, epoch, model, val_loader, config, writer, scaler)
         # save checkpoint and epoch
         if epoch % config.common.save_ckpt_freq == 1:
-            # torch.save(model.module.state_dict(), f"{log_dir}/model.pth")
-            print(f'saving')
             save_checkpoint(model, optimizer, scheduler, epoch, f"{log_dir}/model.pth")
-
-            #TODO: set up resume

@@ -32,6 +32,10 @@ from .configs import RQTransformerConfig
 import sys
 
 
+#Changes for mlm
+#Remove attention maskng for spatial 
+#If mask, then apply mask to loss
+
 class RQTransformer(Stage2Model):
 
     def __init__(self, config: RQTransformerConfig):
@@ -84,15 +88,17 @@ class RQTransformer(Stage2Model):
         self.embed_drop = nn.Dropout(config.embd_pdrop, inplace=True)
 
         # ==== AR modeling layer definitions ====
-        self.body_transformer = AttentionStack(config.body, mask=False)
+        print(f'masking {config.use_spatial_masking}, should be False if bidireictional')
+        self.body_transformer = AttentionStack(config.body, mask=config.use_spatial_masking)
         self.head_transformer = AttentionStack(config.head, mask=True)
 
         # ==== final fc layer definition ====
+        mask = 0 if config.use_spatial_masking else 1
         self.classifier = nn.Sequential(OrderedDict([
             ('layer_norm', nn.LayerNorm(config.embed_dim)),
             (
                 'linear',
-                nn.Linear(config.embed_dim, config.vocab_size[0])
+                nn.Linear(config.embed_dim, config.vocab_size[0]-mask)
                 if config.shared_cls_emb else
                 BatchLinear(config.block_size[1], config.embed_dim, max(config.vocab_size))
             ),
@@ -129,7 +135,6 @@ class RQTransformer(Stage2Model):
             dim=1,
         )
         body_attention = self.body_transformer.get_matrix(latents)
-        print(f'shape of body attention {len(body_attention)} {body_attention[0].shape}')
         return body_attention
 
     def forward(self, xs, model_aux=None, cond=None, amp=False, return_embeddings=False, one_hot=False):
@@ -175,9 +180,7 @@ class RQTransformer(Stage2Model):
 
             # body transformer
             # print(f'latents input {latents.shape}') #B, T, embed_dim
-            print(f'###########body transformer###############')
             latents = self.body_transformer(latents)
-            print(f'###########done body transformer###############')
             spatial_ctx = latents[:, cond_len-1:] #basically T dim
 
             # if cond_len > 1, compute the logits for conditioning sequence.
@@ -214,9 +217,7 @@ class RQTransformer(Stage2Model):
 
             # head transformer & final fc (classifier)
             # print(f'depth input {depth_ctx_full.shape}') #B*T, D, embed_dim
-            print(f'###########head transformer###############')
             head_outputs = self.head_transformer(depth_ctx_full)
-            print(f'###########done head transformer###############')
             # print(f'before {head_outputs.shape}') #B*T, D, embed_dim
             head_outputs = head_outputs.reshape(B, T, D, -1) #B, T, D, embed_dim
             # print(f'head {head_outputs.shape}') 
@@ -413,23 +414,23 @@ class RQTransformer(Stage2Model):
 
         return xs
 
-    def compute_loss(self, logits, targets, use_soft_target=False):
+    def compute_loss(self, logits, targets, use_soft_target=False, mask=None):
         # print(f'logits {logits.shape}')
         # print(f'{targets.shape}')
         logits = logits.reshape(-1, logits.shape[-1])
-        if use_soft_target:
-            targets = targets.reshape(-1, targets.shape[-1])
-            # print(f'soft')
-            # print(f'{logits.shape}, {targets.shape}')
-            loss = soft_target_cross_entropy(logits, targets)
-
-        else:
-            targets = targets.long()
-            targets = targets.reshape(-1)
-            # print(f'logits {logits.shape}')
-            # print(f'targets {torch.max(targets)} {torch.min(targets)}')
-            # sys.exit()
-            loss = F.cross_entropy(logits, targets)
+        if mask is not None:
+            mask = mask.reshape(-1)
+        # if use_soft_target:
+        #     targets = targets.reshape(-1, targets.shape[-1])
+        #     loss = soft_target_cross_entropy(logits, targets)
+        # else:
+        targets = targets.long()
+        targets = targets.reshape(-1)
+        loss = F.cross_entropy(logits, targets, reduction='none')
+        if mask is not None:
+            masked_loss = loss * mask
+            loss = masked_loss.sum() / mask.sum()
+        # sys.exit()
 
         return loss
 

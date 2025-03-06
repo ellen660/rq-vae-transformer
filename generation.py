@@ -58,8 +58,9 @@ def plot_attention_matrix(model, val_loader, config, save_dir):
             attn_weights = layer[0].detach().cpu().numpy()
             # attn_weights = (attn_weights - np.min(attn_weights)) / (np.max(attn_weights) - np.min(attn_weights))
             # attn_weights = np.log1p(attn_weights)
-            axs[i].pcolormesh(attn_weights, cmap='coolwarm', aspect='auto')#0th head
+            axs[i].pcolormesh(attn_weights, cmap='viridis', vmin=0, vmax=0.2)#0th head
             axs[i].set_title(f'Layer {i} Head 0'), #vmin=0, vmax=0.2, subtravt one and two 
+        
         fig.tight_layout()
         fig.savefig(f'{save_dir}/shhs2/{item["filename"][0]}_attention.png')
         # breakpoint()

@@ -60,6 +60,7 @@ class RQTransformerConfig:
 
     embd_pdrop: float = 0.0
 
+    use_spatial_masking: bool = True
     body: AttentionStackConfig = AttentionStackConfig()
     head: AttentionStackConfig = AttentionStackConfig()
 
