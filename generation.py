@@ -148,7 +148,7 @@ def generate_embeddings(model, rvqvae, data_loader, config, save_dir):
         x = item["x"]
         x = x.to(device)
 
-        embeddings = model(x, return_embeddings=True)  # Forward pass
+        embeddings = model(x, return_embeddings=True)  # Forward pass, spatial_ctx
         # print(f'embedding shape {embeddings.shape}')
         x = x.permute(2, 0, 1)
         quantized_actual = rvqvae.quantizer.decode(x) #D, B, T
