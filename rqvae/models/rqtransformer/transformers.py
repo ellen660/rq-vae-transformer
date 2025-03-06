@@ -150,7 +150,10 @@ class RQTransformer(Stage2Model):
                 dim=1,
             )
             # NOTE: dropout applied after everything is combined, not as before
-            latents = self.embed_drop(latents)
+            if self.training:
+                print(f'dropout')
+                sys.exit()
+                latents = self.embed_drop(latents)
 
             # body transformer
             # print(f'latents input {latents.shape}') #B, T, embed_dim

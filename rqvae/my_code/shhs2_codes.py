@@ -32,6 +32,7 @@ class Shhs2Dataset(Dataset):
         self.cv = cv
         self.ds_dir = self.root
         self.max_length = max_length
+        self.soft = soft
 
         # dataset preparation (only select the intersection between all channels)
         file_list = set()
@@ -207,7 +208,7 @@ class Shhs2Dataset(Dataset):
         if self.soft:
             item["y"] = soft_codes
         else:
-            item["y"] = None
+            item["y"] = torch.zeros(1)
 
         return item
 

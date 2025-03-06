@@ -242,12 +242,12 @@ def set_args():
     
     parser.add_argument("--config", type=str, default="test")
     # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250218/body_12layers_16heads_head_12layers_16heads") 1step
-    # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout") 4step
-    parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/mlm/20250306/093732/body_12layers_16heads_head_12layers_16heads_0.0dropout")
+    parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout")# 4step
+    # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/mlm/20250306/093732/body_12layers_16heads_head_12layers_16heads_0.0dropout")
     return parser.parse_args()
 
 if __name__ == "__main__":
-    save_dir = f'/data/scratch/ellen660/rq-vae-transformer/predictions/mlm'
+    save_dir = f'/data/scratch/ellen660/rq-vae-transformer/predictions/embedding_4_no_dropout'
     os.makedirs(save_dir, exist_ok=True)
     args = set_args()
     user_name = os.getlogin()
