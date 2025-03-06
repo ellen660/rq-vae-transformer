@@ -127,13 +127,16 @@ class RQTransformer(Stage2Model):
 
         conds_emb = self.cond_emb(cond) + self.pos_emb_cond[:, :cond_len, :] #embed transformer
         xs_emb = xs_emb.sum(dim=-2) + self.pos_emb_hw[:, :seq_len, :]
-        latents = torch.cat(
-            [
-                conds_emb,
-                xs_emb[:, :-1, :]
-            ],
-            dim=1,
-        )
+        # print(f'xs_emb {xs_emb.shape}')
+        # print(f'conds_emb {conds_emb.shape}')
+        # latents = torch.cat(
+        #     [
+        #         conds_emb,
+        #         xs_emb[:, :-1, :]
+        #     ],
+        #     dim=1,
+        # )
+        latents = xs_emb
         body_attention = self.body_transformer.get_matrix(latents)
         return body_attention
 
@@ -166,15 +169,20 @@ class RQTransformer(Stage2Model):
                 else:
                     xs_emb = self.tok_emb(xs)
 
-            conds_emb = self.cond_emb(cond) + self.pos_emb_cond[:, :cond_len, :] #embed transformer
-            xs_emb = xs_emb.sum(dim=-2) + self.pos_emb_hw[:, :seq_len, :]
-            latents = torch.cat(
-                [
-                    conds_emb,
-                    xs_emb[:, :-1, :]
-                ],
-                dim=1,
-            )
+            conds_emb = self.cond_emb(cond) + self.pos_emb_cond[:, :cond_len, :] #embed transformer #B, 1, embed_dim
+            xs_emb = xs_emb.sum(dim=-2) + self.pos_emb_hw[:, :seq_len, :] #B, T, embed_dim
+            # print(f'xs_emb {xs_emb.shape}')
+            # print(f'conds_emb {conds_emb.shape}')
+            # latents = torch.cat(
+            #     [
+            #         conds_emb,
+            #         xs_emb[:, :-1, :]
+            #     ],
+            #     dim=1,
+            # )
+            # print(f'latents {latents.shape}')
+            # sys.exit()
+            latents = xs_emb
             # NOTE: dropout applied after everything is combined, not as before
             latents = self.embed_drop(latents)
 

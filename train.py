@@ -70,11 +70,12 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
 
         # print(f'x shape: {x.shape}, target shape: {target.shape}')
         # print(f'{item["mask"].shape}') #B, T
+        # sys.exit()
         loss = 0
         
         #First pass
         logits = model(xs=x, amp=config.common.amp)  #B, T, D, vocab_size
-        loss += model.module.compute_loss(logits[:, :-1, :, :], target[:, 1:, :], use_soft_target=config.loss.soft, mask=mask[:, 1:, :])
+        loss += model.module.compute_loss(logits, target, use_soft_target=config.loss.soft, mask=mask)
 
         #Predict future steps
 
@@ -85,15 +86,15 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
             
         # Predict two steps ahead
         # logits2 = predict_future(model, logits, tau=0.1)
-        # loss += model.module.compute_loss(logits2[:, :-1, :, :], target[:, 2:, :], use_soft_target=config.loss.soft)
+        # loss += model.module.compute_loss(logits2, target[:, 2:, :], use_soft_target=config.loss.soft)
 
         # # Predict three steps ahead
         # logits3 = predict_future(model, logits2, tau=0.1)
-        # loss += model.module.compute_loss(logits3[:, :-1, :, :], target[:, 3:, :], use_soft_target=config.loss.soft)
+        # loss += model.module.compute_loss(logits3, target[:, 3:, :], use_soft_target=config.loss.soft)
 
         # # Predict four steps ahead
         # logits4 = predict_future(model, logits3, tau=0.1)
-        # loss += model.module.compute_loss(logits4[:, :-1, :, :], target[:, 4:, :], use_soft_target=config.loss.soft)
+        # loss += model.module.compute_loss(logits4, target[:, 4:, :], use_soft_target=config.loss.soft)
             
         optimizer.zero_grad()  # Reset gradients
         # scaler.scale(loss).backward()  # Backpropagatio
