@@ -41,6 +41,40 @@ from encodec import EncodecModel
 from encodec.my_code.spectrogram_loss import ReconstructionLoss, ReconstructionLosses
 
 @torch.no_grad()
+def plot_attention_matrix(model, val_loader, config, save_dir):
+    model.eval()
+    progress_bar = tqdm(val_loader, desc=f"Visualize Attention", unit="batch")
+    matrices = {}
+    for i, item in enumerate(progress_bar):
+        if i>=10:
+            break
+        x = item["x"]
+        x = x.to(device)
+
+        save_path = f'{save_dir}/shhs2/{item["filename"][0]}_attention.pdf'
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+        attention_matrix = model.get_attention_matrix(x)
+        fig, axs = plt.subplots(4, 3, figsize=(20, 20), sharex=False)
+        axs = axs.flatten()
+        for i, layer in enumerate(attention_matrix):
+            # breakpoint()
+            attn_weights = layer[0].detach().cpu().numpy()
+            # attn_weights = (attn_weights - np.min(attn_weights)) / (np.max(attn_weights) - np.min(attn_weights))
+            # attn_weights = np.log1p(attn_weights)
+            axs[i].pcolormesh(attn_weights, cmap='magma', vmin=0, vmax=0.2)#0th head
+            axs[i].set_title(f'Layer {i} Head 0'), #vmin=0, vmax=0.2, subtravt one and two 
+        
+        fig.tight_layout()
+        fig.savefig(f'{save_dir}/shhs2/{item["filename"][0]}_attention.png')
+        # plt.savefig(save_path, format="pdf", bbox_inches="tight")
+        plt.close(fig)
+
+        # breakpoint()
+        matrices[item["filename"][0]] = attention_matrix
+    return matrices
+
+@torch.no_grad()
 def test(model, rvqvae, val_loader, config, save_dir):
     model.eval()
     rvqvae.eval()
@@ -79,18 +113,19 @@ def test(model, rvqvae, val_loader, config, save_dir):
         # breakpoint()
 
         time_start = 0
-        time_end = output_actual.shape[0]
+        # time_end = output_actual.shape[0]
+        time_end = 1200
 
         x_time = np.arange(time_start, time_end, 1)
         print(f'time shape {x_time.shape}')
 
-        # axs[0].plot(x_time, output_prediction.detach().cpu().numpy().squeeze()[10000:10000+10*120])
-        # axs[0].set_title('Reconstructed RVQVAE')
-        # axs[0].set_ylim(-6, 6)
+        axs[0].plot(x_time, output_prediction.detach().cpu().numpy().squeeze()[10000:10000+10*120])
+        axs[0].set_title('Reconstructed RVQVAE')
+        axs[0].set_ylim(-6, 6)
 
-        # axs[1].plot(x_time, output_actual.detach().cpu().numpy().squeeze()[10000:10000+10*120])
-        # axs[1].set_title('Generated Transformer')
-        # axs[1].set_ylim(-6, 6)
+        axs[1].plot(x_time, output_actual.detach().cpu().numpy().squeeze()[10000:10000+10*120])
+        axs[1].set_title('Generated Transformer')
+        axs[1].set_ylim(-6, 6)
 
         # axs[2].plot(x_time[10000:10000+10*120], diff[10000:10000+10*120])
         # axs[2].set_title('Differenec')
@@ -105,7 +140,7 @@ def test(model, rvqvae, val_loader, config, save_dir):
 
         axs[3].imshow(S_x_hat.detach().cpu().numpy()[0], cmap='jet', aspect='auto', extent=[time_start, time_end, 0, num_freq//2], vmin=min_spec_val, vmax=max_spec_val)
         axs[3].invert_yaxis()
-        axs[3].set_title('Transformer Spectrogram')
+        axs[3].set_title('Transformer Spectrogram L1 loss {:.6f}'.format(freq_loss_dict["l1_loss"]))
 
         #save fig 
         fig.tight_layout()
@@ -241,18 +276,19 @@ def set_args():
     parser = argparse.ArgumentParser()
     
     parser.add_argument("--config", type=str, default="test")
-    # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250218/body_12layers_16heads_head_12layers_16heads") 1step
-    parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout")# 4step
+    parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250218/body_12layers_16heads_head_12layers_16heads") #1step
+    # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout")# 4step
     # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/mlm/20250306/093732/body_12layers_16heads_head_12layers_16heads_0.0dropout")
     return parser.parse_args()
 
 if __name__ == "__main__":
-    save_dir = f'/data/scratch/ellen660/rq-vae-transformer/predictions/embedding_4_no_dropout'
+    save_dir = f'/data/scratch/ellen660/rq-vae-transformer/predictions/embeddings'
     os.makedirs(save_dir, exist_ok=True)
     args = set_args()
     user_name = os.getlogin()
 
     checkpoint_path = args.model_path
+    # checkpoint_paths = [f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250218/body_12layers_16heads_head_12layers_16heads", f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout"]
 
     # Load the YAML file
     config = load_config(f"{checkpoint_path}/config.yaml")
@@ -286,7 +322,9 @@ if __name__ == "__main__":
     print("checkpoint loaded successfully")
 
     # test(model, model_rqvae, val_loader, config, save_dir)
-    generate_embeddings(model, model_rqvae, test_loader, config, save_dir)
+    # generate_embeddings(model, model_rqvae, test_loader, config, save_dir)
+    matrices = plot_attention_matrix(model, val_loader, config, save_dir)
+    # breakpoint()
 
 
 # def plot_most_frequent_signals(ds_name, pivot, model, save_dir, config, device):

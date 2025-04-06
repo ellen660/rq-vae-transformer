@@ -1,0 +1,87 @@
+exp_details:
+  name: test
+  description: 30_seconds
+
+dataset:
+  path: '/data/scratch/ellen660/encodec/encodec/predictions/no_discrim/30_seconds/20250402/test'
+  batch_size: 8
+  cv: 0
+  max_length: 840
+  external: shhs1
+  mgh: 0.
+  shhs2: 1.
+  shhs1: 0.
+  mros1: 0.
+  mros2: 0.
+  wsc: 0.
+  cfs: 0.
+  bwh: 0.
+  mesa: 0.
+  thorax: 1.
+  abdominal: 0.
+
+arch:
+  type: rq-transformer
+  block_size: [ 840, 32 ]
+  ema: False
+  num_steps: 4
+
+  embed_dim: 256
+  input_embed_dim: 256
+  shared_tok_emb: true
+  shared_cls_emb: true
+
+  input_emb_vqvae: False
+  head_emb_vqvae: False
+  cumsum_depth_ctx: true
+
+  vocab_size_cond: 1
+  block_size_cond: 1
+  vocab_size: 512 #number of bins
+
+  embd_pdrop: 0.1 #default 0.0, 
+
+  body:
+    n_layer: 12 #16 body layers  #default 12 #24k/48k for 16
+    block:
+      n_head: 16 #32 heads  #default 16  #for 8 20k, for 32 23k
+      embed_dim: 256
+  head:
+    n_layer: 12 #8 layers  #default 4 #32k for 8 layers
+    block:
+      n_head: 16 #32 heads  #default 16 #36k for 32
+      embed_dim: 256
+
+loss:
+  type: soft_target_cross_entropy
+  soft: False
+  stochastic_codes: False
+  temp: 0.5 #Try 0.1
+
+optimizer: #warmup
+  type: adamW
+  init_lr: 0.0005 #learning rate
+  weight_decay: 0.0001
+  betas: [0.9, 0.95]
+  warmup: #add warmup 
+    epoch: 15
+    multiplier: 1
+    buffer_epoch: 0
+    min_lr: 0.0
+    mode: fix
+    start_from_zero: True
+  max_gn: 1.0 
+
+common:
+  log_every: 1
+  save_every: 1
+  test_every: 1
+  max_epoch: 5
+  seed: 42
+  amp: False
+  gradient_clipping: true
+  gradient_clipping_value: 0.1
+  batch_size: 8
+  num_workers: 10
+  debug: False
+  distributed: False #if false uses data parallel instead of ddp

@@ -5,34 +5,22 @@ import math
 import rqvae.utils.dist as dist_utils
 from rqvae.models import create_model
 from rqvae.models.rqtransformer.configs import RQTransformerConfig, AttentionStackConfig, AttentionBlockConfig
-from rqvae.my_code.shhs2_codes import Shhs2Dataset
-from rqvae.my_code.metrics import Metrics, MetricsArgs
-from rqvae.my_code.all_codes import AllCodes
-from rqvae.my_code import MergedDataset
-from rqvae.my_code.loss import compute_loss
+from rqvae.data import init_dataset
+from rqvae.losses import compute_loss, Metrics, MetricsArgs, LinearWarmupCosineAnnealingLR
 from rqvae.optimizer import create_optimizer, create_scheduler
 from rqvae.utils.utils import set_seed, compute_model_size, get_num_conv_linear_layers
-from rqvae.my_code.schedulers import LinearWarmupCosineAnnealingLR
-# from rqvae.utils.setup import setup
 
 import torch
 import torch.optim as optim
 import torch.nn as nn
 from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
+import torch.nn.functional as F
+
 from datetime import datetime
 import yaml
-import random
-from collections import defaultdict
 from tqdm import tqdm
 import argparse
-import matplotlib.pyplot as plt
-import numpy as np
-from torch.cuda.amp import GradScaler, autocast
-import time
-import torch.nn.functional as F
-import sys
-
 from dataclasses import fields, is_dataclass
 import torch.utils.checkpoint as checkpoint
 import functools
@@ -194,7 +182,7 @@ def init_logger(log_dir, resume=False):
         # Resume logging
         writer = SummaryWriter(log_dir=log_dir, purge_step=None)  # Prevents overwriting
     else:
-        writer = SummaryWriter(log_dir=log_dir)d
+        writer = SummaryWriter(log_dir=log_dir)
     return writer
 
 def init_dataset(config):

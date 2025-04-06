@@ -56,7 +56,7 @@ class MultiSelfAttention(nn.Module):
 
         self.n_head = config.n_head
         self.mask = mask
-
+    
     def forward(self, x, caching=False, past_kv=None):
         (B, T, C) = x.shape
 
@@ -90,14 +90,22 @@ class MultiSelfAttention(nn.Module):
             mask = mask.view(1, T_past+T, T_past+T)
             att = att.masked_fill(~mask[:, T_past:T_past+T, :T_past+T], float('-inf'))
         att = F.softmax(att, dim=-1)
-        att = self.attn_drop(att)
+        if self.training:
+            # print(f'attn dropout')
+            att = self.attn_drop(att)
 
         y = torch.bmm(att, v)  # (B*nh, T, T_past+T) X (B*nh, T_past+T, hs) -> (B*nh, T, hs)
         y = y.transpose(0, 1).contiguous().view(T, B, C)  # re-assemble all head outputs side by side
 
         # output projection
-        y = self.resid_drop(self.proj(y))
+        if self.training:
+            # print(f'residual dropout')
+            y = self.resid_drop(self.proj(y))
+        else:
+            y = self.proj(y)
 
+        if not self.training:
+            return y.transpose(0, 1).contiguous(), att
         if caching:
             return y.transpose(0, 1).contiguous(), present  # (T, B, C) -> (B, T, C)
         else:
@@ -121,10 +129,16 @@ class AttentionBlock(nn.Module):
             nn.Dropout(config.resid_pdrop, inplace=True),
         )
         self._cache = None
+    
+    def get_matrix(self, x):
+        _, attn_matrix = self.attn(self.ln1(x))
+        return attn_matrix
 
     def forward(self, x):
-
-        attn = self.attn(self.ln1(x))
+        if not self.training:
+            attn, _ = self.attn(self.ln1(x))
+        else:
+            attn = self.attn(self.ln1(x))
 
         x = x + attn
         x = x + self.mlp(self.ln2(x))
@@ -153,6 +167,14 @@ class AttentionStack(nn.Module):
         super().__init__()
 
         self.blocks = nn.ModuleList([AttentionBlock(config.block) for _ in range(config.n_layer)])
+    
+    def get_matrix(self, x):
+        matrices = []
+        for block in self.blocks:
+            matrix = block.get_matrix(x)
+            matrices.append(matrix)
+            x = block(x)
+        return matrices
 
     def forward(self, x):
         for block in self.blocks:

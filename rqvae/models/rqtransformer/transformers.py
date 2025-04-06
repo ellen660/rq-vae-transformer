@@ -111,6 +111,29 @@ class RQTransformer(Stage2Model):
         xs_emb, _ = model_aux.get_code_emb_with_depth(xs)
         return xs_emb
 
+    def get_attention_matrix(self, xs):
+        B, T, D = xs.shape
+        cond = torch.zeros(B, self.block_size_cond, device=xs.device, dtype=torch.long)
+        xs_emb = self.tok_emb(xs)
+
+        seq_len = xs.shape[1] 
+        cond_len = cond.shape[1] #1
+
+        conds_emb = self.cond_emb(cond) + self.pos_emb_cond[:, :cond_len, :] #embed transformer
+        xs_emb = xs_emb.sum(dim=-2) + self.pos_emb_hw[:, :seq_len, :]
+        # print(f'xs_emb {xs_emb.shape}')
+        # print(f'conds_emb {conds_emb.shape}')
+        latents = torch.cat(
+            [
+                conds_emb,
+                xs_emb[:, :-1, :]
+            ],
+            dim=1,
+        )
+        # latents = xs_emb
+        body_attention = self.body_transformer.get_matrix(latents)
+        return body_attention
+
     def forward(self, xs, model_aux=None, cond=None, amp=False, return_embeddings=False, one_hot=False):
         with torch.amp.autocast(device_type='cuda', enabled=amp):
             if one_hot:
@@ -151,8 +174,8 @@ class RQTransformer(Stage2Model):
             )
             # NOTE: dropout applied after everything is combined, not as before
             if self.training:
-                print(f'dropout')
-                sys.exit()
+                # print(f'dropout')
+                # sys.exit()
                 latents = self.embed_drop(latents)
 
             # body transformer
