@@ -21,7 +21,6 @@ from torch.nn import functional as F
 
 from .configs import AttentionBlockConfig, AttentionStackConfig
 
-
 class GELU(nn.Module):
     def __init__(self, version='v1'):
         super().__init__()
@@ -109,7 +108,7 @@ class MultiSelfAttention(nn.Module):
         if caching:
             return y.transpose(0, 1).contiguous(), present  # (T, B, C) -> (B, T, C)
         else:
-            return y.transpose(0, 1).contiguous()  # (T, B, C) -> (B, T, C)
+            return y.transpose(0, 1).contiguous(), None  # (T, B, C) -> (B, T, C)
 
 
 class AttentionBlock(nn.Module):
@@ -135,10 +134,7 @@ class AttentionBlock(nn.Module):
         return attn_matrix
 
     def forward(self, x):
-        if not self.training:
-            attn, _ = self.attn(self.ln1(x))
-        else:
-            attn = self.attn(self.ln1(x))
+        attn, _ = self.attn(self.ln1(x))
 
         x = x + attn
         x = x + self.mlp(self.ln2(x))
