@@ -3,12 +3,12 @@ import torchmetrics
 import sys
 import torch
 
-def compute_metrics(logits, targets, soft=False):
+def compute_metrics(logits, targets, soft=False, mask=None):
     B, T, D, N = logits.shape
     metrics = {}
-    auroc = torchmetrics.AUROC(task="multiclass", num_classes=512).to(logits.device)
-    top1_acc = torchmetrics.Accuracy(task="multiclass", num_classes=N, top_k=1).to(logits.device)
-    top5_acc = torchmetrics.Accuracy(task="multiclass", num_classes=N, top_k=5).to(logits.device)
+    auroc = torchmetrics.AUROC(task="multiclass", num_classes=N).to(logits.device)
+    top1_acc = torchmetrics.Accuracy(task="multiclass", num_classes=N, top_k=1, ignore_index=-1).to(logits.device)
+    top5_acc = torchmetrics.Accuracy(task="multiclass", num_classes=N, top_k=5, ignore_index=-1).to(logits.device)
     auroc_per_depth = []
     top_1 = []
     top_5 = []
@@ -21,9 +21,13 @@ def compute_metrics(logits, targets, soft=False):
             target_d = targets[:, :, d, :].reshape(B * T, N)
         else:
             target_d = targets[:, :, d].reshape(B * T)  # (B*T,)
-        
+        if mask is not None:
+            # print(f'maskig')
+            mask_d = mask[:, :, d].reshape(B * T)
+            target_d[~mask_d] = -1
+
         # Compute loss
-        loss = F.cross_entropy(logit_d, target_d)
+        loss = F.cross_entropy(logit_d, target_d, ignore_index=-1)
         metrics[f'Cross Entropy {d}'] = loss
 
         # Compute AUROC
@@ -47,7 +51,7 @@ def compute_metrics(logits, targets, soft=False):
     return metrics
 
 @torch.no_grad()
-def compute_loss(logits, targets, soft=False, ds_id=None):
+def compute_loss(logits, targets, soft=False, ds_id=None, mask=None):
     if not soft:
         targets = targets.long()
 
@@ -57,9 +61,10 @@ def compute_loss(logits, targets, soft=False, ds_id=None):
         label = label.item()
         if label not in seen_labels:
             seen_labels.add(label)
-            mask = ds_id == label
-            logits_mask = logits[mask]
-            targets_mask = targets[mask]
-            metrics[label] = compute_metrics(logits_mask, targets_mask, soft=soft)
+            dataset_mask = ds_id == label
+            logits_mask = logits[dataset_mask]
+            targets_mask = targets[dataset_mask]
+            new_mask = mask[dataset_mask] if mask is not None else None
+            metrics[label] = compute_metrics(logits_mask, targets_mask, soft=soft, mask=new_mask)
     
     return metrics

@@ -1,5 +1,5 @@
 exp_details:
-  name: test
+  name: mlm
   description: 30_seconds
 
 dataset:
@@ -37,9 +37,9 @@ arch:
 
   vocab_size_cond: 1
   block_size_cond: 1
-  vocab_size: 512 #number of bins
+  vocab_size: 513 #number of bins
 
-  embd_pdrop: 0.1 #default 0.0, 
+  embd_pdrop: 0.0 #default 0.0, 
 
   body:
     n_layer: 12 #16 body layers  #default 12 #24k/48k for 16

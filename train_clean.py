@@ -29,7 +29,7 @@ import functools
 def predict_future(model, logits, tau=0.1):
     soft_tokens = F.gumbel_softmax(logits[:, 1:, :, :], tau, hard=False)
     hard_tokens = torch.argmax(logits[:, 1:, :, :], dim=-1)
-    ste_tokens = (F.one_hot(hard_tokens.to(torch.int64), config.arch.vocab_size).float() - soft_tokens).detach() + soft_tokens
+    ste_tokens = (F.one_hot(hard_tokens.to(torch.int64), config.arch.vocab_size-1).float() - soft_tokens).detach() + soft_tokens
     logits2 = model(xs=ste_tokens, amp=config.common.amp, one_hot=True)
     return logits2
 
@@ -39,15 +39,18 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
     progress_bar = tqdm(train_loader, desc=f"Training Epoch {epoch}", unit="batch")
 
     for i, (item, ds_id) in enumerate(progress_bar):
-        x= item["x"].to(device)
-        target = x
+        x = item["masked_input"].to(device)
+        target = item["x"].to(device)
+        mask = item["mask"].unsqueeze(-1).expand(-1, -1, config.arch.block_size[1])
+        mask = mask.to(device)
         # print(f'x shape: {x.shape} {x.dtype}') #B, T, D
+        # print(f'mask shape: {mask.shape} {mask.dtype}') #B, T, D
         loss = 0
         
         #First pass
         logits = model(xs=x, amp=config.common.amp)  #B, T, D, vocab_size
         # print(f'logits {logits.shape}') #B, T, D, vocab_size
-        loss += model.module.compute_loss(logits, target, use_soft_target=config.loss.soft)
+        loss += model.module.compute_loss(logits, target, use_soft_target=config.loss.soft, mask=mask)
 
         #Predict future steps
 
@@ -58,15 +61,15 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
             
         # Predict two steps ahead
         # logits2 = predict_future(model, logits, tau=0.1)
-        # loss += model.module.compute_loss(logits2, target[:, 1:, :], use_soft_target=config.loss.soft)
+        # loss += model.module.compute_loss(logits2, target[:, 2:, :], use_soft_target=config.loss.soft)
 
         # # Predict three steps ahead
         # logits3 = predict_future(model, logits2, tau=0.1)
-        # loss += model.module.compute_loss(logits3, target[:, 2:, :], use_soft_target=config.loss.soft)
+        # loss += model.module.compute_loss(logits3, target[:, 3:, :], use_soft_target=config.loss.soft)
 
         # # Predict four steps ahead
         # logits4 = predict_future(model, logits3, tau=0.1)
-        # loss += model.module.compute_loss(logits4, target[:, 3:, :], use_soft_target=config.loss.soft)
+        # loss += model.module.compute_loss(logits4, target[:, 4:, :], use_soft_target=config.loss.soft)
             
         optimizer.zero_grad()  # Reset gradients
         # scaler.scale(loss).backward()  # Backpropagatio
@@ -81,7 +84,7 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
 
         epoch_loss += loss.item()
         progress_bar.set_postfix(loss=loss.item())
-        losses = compute_loss(logits, x, soft=False, ds_id=ds_id)
+        losses = compute_loss(logits, target, soft=False, ds_id=ds_id, mask=mask)
         for d_id in losses.keys():
             metrics[d_id].fill_metrics(losses[d_id], epoch*len(train_loader) + i)
 
@@ -103,15 +106,16 @@ def test(metrics, epoch, model, val_loader, config, writer, scaler, label_mappin
     progress_bar = tqdm(val_loader, desc=f"Validation Epoch {epoch}", unit="batch")
 
     for i, (item, ds_id) in enumerate(progress_bar):
-        x= item["x"].to(device)
-        target = x
+        x = item["masked_input"].to(device)
+        target = item["x"].to(device)
+        mask = item["mask"].unsqueeze(-1).expand(-1, -1, config.arch.block_size[1]).to(device)
 
         logits = model(x)  # Forward pass
-        loss = model.module.compute_loss(logits, target, use_soft_target=config.loss.soft)
+        loss = model.module.compute_loss(logits, target, use_soft_target=config.loss.soft, mask=mask)
         
         epoch_loss += loss.item()
         progress_bar.set_postfix(loss=loss.item())
-        losses = compute_loss(logits, x, soft=False, ds_id=ds_id)
+        losses = compute_loss(logits, target, soft=False, ds_id=ds_id, mask=mask)
         for d_id in losses.keys():
             metrics[d_id].fill_metrics(losses[d_id], epoch*len(val_loader) + i)
 
@@ -223,7 +227,7 @@ def init_model(config):
 def set_args():
     parser = argparse.ArgumentParser()
     
-    parser.add_argument("--config", type=str, default="autoregressive")
+    parser.add_argument("--config", type=str, default="mlm")
     parser.add_argument("--resume_from", type=str, default="")
 
     return parser.parse_args()

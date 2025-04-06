@@ -84,15 +84,15 @@ class RQTransformer(Stage2Model):
         self.embed_drop = nn.Dropout(config.embd_pdrop, inplace=True)
 
         # ==== AR modeling layer definitions ====
-        self.body_transformer = AttentionStack(config.body)
-        self.head_transformer = AttentionStack(config.head)
+        self.body_transformer = AttentionStack(config.body, mask=False) #bidirectional now
+        self.head_transformer = AttentionStack(config.head, mask=True)
 
         # ==== final fc layer definition ====
         self.classifier = nn.Sequential(OrderedDict([
             ('layer_norm', nn.LayerNorm(config.embed_dim)),
             (
                 'linear',
-                nn.Linear(config.embed_dim, config.vocab_size[0])
+                nn.Linear(config.embed_dim, config.vocab_size[0] - 1)
                 if config.shared_cls_emb else
                 BatchLinear(config.block_size[1], config.embed_dim, max(config.vocab_size))
             ),
@@ -123,14 +123,14 @@ class RQTransformer(Stage2Model):
         xs_emb = xs_emb.sum(dim=-2) + self.pos_emb_hw[:, :seq_len, :]
         # print(f'xs_emb {xs_emb.shape}')
         # print(f'conds_emb {conds_emb.shape}')
-        latents = torch.cat(
-            [
-                conds_emb,
-                xs_emb[:, :-1, :]
-            ],
-            dim=1,
-        )
-        # latents = xs_emb
+        # latents = torch.cat(
+        #     [
+        #         conds_emb,
+        #         xs_emb[:, :-1, :]
+        #     ],
+        #     dim=1,
+        # )
+        latents = xs_emb
         body_attention = self.body_transformer.get_matrix(latents)
         return body_attention
 
@@ -155,27 +155,15 @@ class RQTransformer(Stage2Model):
                 xs_emb = self.input_mlp(xs_emb)
             else:
                 if one_hot:
-                    # print(f"{self.tok_emb.weight}")
-                    # print(f"{self.tok_emb.weight.shape}")
-                    # print(f'xs {xs.shape} {xs.dtype}')
-                    # sys.exit()
                     xs_emb = torch.matmul(xs, self.tok_emb.weight)
                 else:
                     xs_emb = self.tok_emb(xs)
 
             conds_emb = self.cond_emb(cond) + self.pos_emb_cond[:, :cond_len, :] #embed transformer
             xs_emb = xs_emb.sum(dim=-2) + self.pos_emb_hw[:, :seq_len, :]
-            latents = torch.cat(
-                [
-                    conds_emb,
-                    xs_emb[:, :-1, :]
-                ],
-                dim=1,
-            )
+            latents = xs_emb
             # NOTE: dropout applied after everything is combined, not as before
             if self.training:
-                # print(f'dropout')
-                # sys.exit()
                 latents = self.embed_drop(latents)
 
             # body transformer
@@ -414,23 +402,22 @@ class RQTransformer(Stage2Model):
 
         return xs
 
-    def compute_loss(self, logits, targets, use_soft_target=False):
+    def compute_loss(self, logits, targets, use_soft_target=False, mask=None):
         # print(f'logits {logits.shape}')
         # print(f'{targets.shape}')
         logits = logits.reshape(-1, logits.shape[-1])
-        if use_soft_target:
-            targets = targets.reshape(-1, targets.shape[-1])
-            # print(f'soft')
-            # print(f'{logits.shape}, {targets.shape}')
-            loss = soft_target_cross_entropy(logits, targets)
-
-        else:
-            targets = targets.long()
-            targets = targets.reshape(-1)
-            # print(f'logits {logits.shape}')
-            # print(f'targets {torch.max(targets)} {torch.min(targets)}')
-            # sys.exit()
-            loss = F.cross_entropy(logits, targets)
+        if mask is not None:
+            mask = mask.reshape(-1)
+        # if use_soft_target:
+        #     targets = targets.reshape(-1, targets.shape[-1])
+        #     loss = soft_target_cross_entropy(logits, targets)
+        # else:
+        targets = targets.long()
+        targets = targets.reshape(-1)
+        loss = F.cross_entropy(logits, targets, reduction='none')
+        if mask is not None:
+            masked_loss = loss * mask
+            loss = masked_loss.sum() / mask.sum()
 
         return loss
 

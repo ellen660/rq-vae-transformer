@@ -109,19 +109,19 @@ class MultiSelfAttention(nn.Module):
         if caching:
             return y.transpose(0, 1).contiguous(), present  # (T, B, C) -> (B, T, C)
         else:
-            return y.transpose(0, 1).contiguous()  # (T, B, C) -> (B, T, C)
+            return y.transpose(0, 1).contiguous(), None  # (T, B, C) -> (B, T, C)
 
 
 class AttentionBlock(nn.Module):
     """ an unassuming Transformer block """
 
-    def __init__(self, config: AttentionBlockConfig):
+    def __init__(self, config: AttentionBlockConfig, mask=True):
         super().__init__()
 
         self.ln1 = nn.LayerNorm(config.embed_dim)
         self.ln2 = nn.LayerNorm(config.embed_dim)
 
-        self.attn = MultiSelfAttention(config, mask=True)
+        self.attn = MultiSelfAttention(config, mask=mask)
         self.mlp = nn.Sequential(
             nn.Linear(config.embed_dim, 4 * config.embed_dim, bias=config.mlp_bias),
             GELU(config.gelu),
@@ -135,10 +135,7 @@ class AttentionBlock(nn.Module):
         return attn_matrix
 
     def forward(self, x):
-        if not self.training:
-            attn, _ = self.attn(self.ln1(x))
-        else:
-            attn = self.attn(self.ln1(x))
+        attn, _ = self.attn(self.ln1(x))
 
         x = x + attn
         x = x + self.mlp(self.ln2(x))
@@ -163,10 +160,10 @@ class AttentionStack(nn.Module):
 
     blocks: Iterable[AttentionBlock]
 
-    def __init__(self, config: AttentionStackConfig):
+    def __init__(self, config: AttentionStackConfig, mask=True):
         super().__init__()
 
-        self.blocks = nn.ModuleList([AttentionBlock(config.block) for _ in range(config.n_layer)])
+        self.blocks = nn.ModuleList([AttentionBlock(config.block, mask=mask) for _ in range(config.n_layer)])
     
     def get_matrix(self, x):
         matrices = []
