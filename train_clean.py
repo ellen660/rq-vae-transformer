@@ -2,6 +2,7 @@ import os
 import argparse
 import math
 import time
+import sys
 
 import rqvae.utils.dist as dist_utils
 from rqvae.models import create_model
@@ -229,6 +230,7 @@ def set_args():
     
     parser.add_argument("--config", type=str, default="mlm")
     parser.add_argument("--resume_from", type=str, default="")
+    parser.add_argument("--log_dir", type=str, default=None)
 
     return parser.parse_args()
 
@@ -245,8 +247,11 @@ if __name__ == "__main__":
     else:
         resume=False 
         config = load_config("rqvae/params/%s.yaml" % args.config)
-        curr_time, curr_min = time.strftime("%Y-%m-%d_%H-%M", time.localtime()).split("_")
-        log_dir = f'/data/scratch/ellen660/rq-vae-transformer/tensorboard/{config.exp_details.name}/{config.exp_details.description}/{curr_time}_{curr_min}/body_{config.arch.body.n_layer}layers_{config.arch.body.block.n_head}heads_head_{config.arch.head.n_layer}layers_{config.arch.head.block.n_head}heads_{config.arch.embd_pdrop}dropout'
+        if args.log_dir:
+            log_dir = args.log_dir
+        else:
+            curr_time, curr_min = time.strftime("%Y-%m-%d_%H-%M", time.localtime()).split("_")
+            log_dir = f'/data/scratch/ellen660/rq-vae-transformer/tensorboard/{config.exp_details.name}/{config.exp_details.description}/{curr_time}_{curr_min}/body_{config.arch.body.n_layer}layers_{config.arch.body.block.n_head}heads_head_{config.arch.head.n_layer}layers_{config.arch.head.block.n_head}heads_{config.arch.embd_pdrop}dropout'
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         # Load the YAML file
@@ -257,7 +262,7 @@ if __name__ == "__main__":
     train_loader, val_loader, train_mapping, val_mapping = init_dataset(config, ddp=False)
     model, model_ema = init_model(config)
     model = model.to(device)
-    if torch.cuda.device_count() > 1:
+    if not config.common.distributed:
         model = nn.DataParallel(model)
 
     optimizer = create_optimizer(model, config)

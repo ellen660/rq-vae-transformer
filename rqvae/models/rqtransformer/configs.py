@@ -24,7 +24,7 @@ class AttentionBlockConfig:
     n_head: int = MISSING
     mlp_bias: bool = True
     attn_bias: bool = True
-    attn_pdrop: float = 0.0
+    attn_pdrop: float = 0.1
     resid_pdrop: float = 0.1
     gelu: str = 'v1'
 

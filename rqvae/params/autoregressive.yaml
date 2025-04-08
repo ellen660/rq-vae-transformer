@@ -81,7 +81,6 @@ common:
   amp: False
   gradient_clipping: true
   gradient_clipping_value: 0.1
-  batch_size: 8
   num_workers: 10
   debug: False
   distributed: False #if false uses data parallel instead of ddp

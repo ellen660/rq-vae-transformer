@@ -3,7 +3,7 @@ import numpy as np
 
 root = '/data/scratch/ellen660/encodec/encodec/predictions/no_discrim/30_seconds/20250402/test'
 datasets = ["shhs1", "shhs2"]
-max_length = 840
+max_length = 840 #7 hours
 bad_files = {}
 
 for dataset in datasets:

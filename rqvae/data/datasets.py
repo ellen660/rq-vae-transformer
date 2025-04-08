@@ -22,10 +22,11 @@ class AllCodes(Dataset):
     datasets = ["bwh",  "cfs",  "mesa", "mgh", "mros1",  "mros2",  "shhs1",  "shhs2",  "wsc"]
     channels = ['thorax', 'abdominal', 'rf']
         
-    def __init__(self, root, dataset = "shhs2", mode = "train", cv = 0, channels = {"thorax": 1.0}, max_length = 2 * 60 * 7, masking = True, vocab_size = 512):
+    def __init__(self, root, dataset = "shhs2", mode = "train", cv = 0, channels = {"thorax": 1.0}, max_length = 2 * 60 * 7, masking = 0.50, vocab_size = 512):
         assert mode in self.modes, 'Only support train, val, or test mode'
         assert dataset in self.datasets, f'Invalid dataset {dataset}'
         assert all([channel in self.channels for channel in channels.keys()]), f'Invalid channels {channels}'
+        assert 0 < masking < 1, f'Masking should be between 0 and 1, got {masking}'
 
         self.dataset = dataset
         self.mode = mode
@@ -78,24 +79,26 @@ class AllCodes(Dataset):
         # Define the special [MASK] token
         MASK_TOKEN = self.vocab_size   
 
-        # Create a mask: 15% of tokens should be masked
-        mask = torch.rand(input_tokens.shape[1]) < 0.15  # 15% probability
+        # Create a mask
+        mask = torch.rand(input_tokens.shape[1]) < self.masking 
 
         masked_input = input_tokens.clone()
-        random_tokens = torch.randint(0, self.vocab_size, input_tokens.shape)
-        replace_with_mask = torch.rand(1, T) < 0.8  # Shape (1, T)
-        replace_with_random = torch.rand(1, T) < 0.5  # Shape (1, T)
+        masked_input[:, mask] = MASK_TOKEN  # Replace with [MASK] token
 
-        # Efficient masking using broadcasting
-        masked_input[:, mask] = torch.where(
-            replace_with_mask[:, mask], 
-            MASK_TOKEN, 
-            torch.where(
-                replace_with_random[:, mask], 
-                random_tokens[:, mask], 
-                input_tokens[:, mask]
-            )
-        )
+        # random_tokens = torch.randint(0, self.vocab_size, input_tokens.shape)
+        # replace_with_mask = torch.rand(1, T) < 0.8  # Shape (1, T)
+        # replace_with_random = torch.rand(1, T) < 0.5  # Shape (1, T) #so remaining 10% of the time, we keep the original token
+
+        # # Efficient masking using broadcasting
+        # masked_input[:, mask] = torch.where(
+        #     replace_with_mask[:, mask], 
+        #     MASK_TOKEN, 
+        #     torch.where(
+        #         replace_with_random[:, mask], 
+        #         random_tokens[:, mask], 
+        #         input_tokens[:, mask]
+        #     )
+        # )
         return mask, masked_input
     
     def __getitem__(self, idx):

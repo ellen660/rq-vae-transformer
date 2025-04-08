@@ -30,6 +30,7 @@ from .primitives import BatchLinear, TupleEmbedding, LogitMask
 from .attentions import AttentionStack
 from .configs import RQTransformerConfig
 import sys
+import time
 
 
 class RQTransformer(Stage2Model):
@@ -87,6 +88,13 @@ class RQTransformer(Stage2Model):
         self.body_transformer = AttentionStack(config.body, mask=False) #bidirectional now
         self.head_transformer = AttentionStack(config.head, mask=True)
 
+        #print number of parameters in body transformer
+        # num_params = sum(p.numel() for p in self.body_transformer.parameters() if p.requires_grad)
+        # print(f'Body transformer number of parameters: {num_params}')
+        # #print number of parameters in head transformer
+        # num_params = sum(p.numel() for p in self.head_transformer.parameters() if p.requires_grad)
+        # print(f'Head transformer number of parameters: {num_params}')
+
         # ==== final fc layer definition ====
         self.classifier = nn.Sequential(OrderedDict([
             ('layer_norm', nn.LayerNorm(config.embed_dim)),
@@ -96,7 +104,7 @@ class RQTransformer(Stage2Model):
                 if config.shared_cls_emb else
                 BatchLinear(config.block_size[1], config.embed_dim, max(config.vocab_size))
             ),
-            ('logit_mask', LogitMask(config.vocab_size, value=-1e6))
+            ('logit_mask', LogitMask(config.vocab_size, value=-1e6)) #False 
         ]))
 
         if config.block_size_cond > 1:
@@ -168,7 +176,13 @@ class RQTransformer(Stage2Model):
 
             # body transformer
             # print(f'latents input {latents.shape}') #B, T, embed_dim
+            # torch.cuda.reset_peak_memory_stats()
+            # start_time = time.time()
             latents = self.body_transformer(latents)
+            # body_mem = torch.cuda.max_memory_allocated() / (1024 ** 2)
+            # # print(f'body transformer time {time.time()-start_time:.2f}s')
+            # print(f'body transformer peak memory: {body_mem:.2f} MB')
+
             spatial_ctx = latents[:, cond_len-1:] #basically T dim
 
             # if cond_len > 1, compute the logits for conditioning sequence.
@@ -205,7 +219,14 @@ class RQTransformer(Stage2Model):
 
             # head transformer & final fc (classifier)
             # print(f'depth input {depth_ctx_full.shape}') #B*T, D, embed_dim
+            # ---- HEAD TRANSFORMER ----
+            # torch.cuda.reset_peak_memory_stats()
+            # start_time = time.time()
             head_outputs = self.head_transformer(depth_ctx_full)
+            # head_mem = torch.cuda.max_memory_allocated() / (1024 ** 2)
+            # # print(f'head transformer time {time.time()-start_time:.2f}s')
+            # print(f'head transformer peak memory: {head_mem:.2f} MB')
+            
             # print(f'before {head_outputs.shape}') #B*T, D, embed_dim
             head_outputs = head_outputs.reshape(B, T, D, -1) #B, T, D, embed_dim
             # print(f'head {head_outputs.shape}') 
