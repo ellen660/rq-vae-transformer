@@ -37,7 +37,7 @@ def init_dataset(config, ddp=False):
             val_weight.append(float(weight))
 
     #Holdout/external dataset
-    val_datasets.append(AllCodes(root, dataset = config.dataset.external, mode = "val", cv = cv, channels = channels, max_length = max_length))
+    val_datasets.append(AllCodes(root, dataset = config.dataset.external, mode = "val", cv = cv, channels = channels, max_length = max_length, masking = config.dataset.masking_ratio, vocab_size = config.arch.vocab_size-1))
     val_weight.append(1.)
 
     # merge the datasets

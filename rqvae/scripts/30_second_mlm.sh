@@ -3,8 +3,8 @@
 # Path to the YAML file
 yaml_file="mlm"
 path="/data/scratch/ellen660/rq-vae-transformer/rqvae/params/$yaml_file.yaml"
-export CUDA_VISIBLE_DEVICES=0,1,2,3
-# export CUDA_VISIBLE_DEVICES=0,1,4,5,6,7
+# export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=0,1,4,5,6,7
 # export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 run_name="30_seconds"
 resume_from=""
@@ -22,14 +22,14 @@ declare -A hyperparameters
 hyperparameters=(
   [".optimizer.init_lr"]="0.0005"
   [".dataset.batch_size"]="8"
-  [".common.max_epoch"]="20"
+  [".common.max_epoch"]="400"
   [".dataset.masking_ratio"]="0.5"
 )
 
 #Iterate over a bunch 
-lr_list=("0.005", "0.0005", "0.00005")  
-batch_size_list=("4")  
-masking_ratio=("0.5")
+lr_list=("0.0005")  
+batch_size_list=("6")  
+masking_ratio=("0.75")
 
 # Iterate over all combinations of hyperparameters
 for lr in "${lr_list[@]}"; do

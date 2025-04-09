@@ -282,7 +282,7 @@ if __name__ == "__main__":
     else:
         start_epoch = 1
 
-    # test(metrics, start_epoch, model, val_loader, config, writer, scaler, val_mapping)
+    test(metrics, start_epoch, model, val_loader, config, writer, scaler, val_mapping)
     for epoch in tqdm(range(start_epoch, config.common.max_epoch+2), desc="Epochs", unit="epoch"):
         train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, config, writer, scaler, train_mapping)
         if epoch % config.common.test_every == 0:
@@ -292,3 +292,4 @@ if __name__ == "__main__":
             save_checkpoint(model, optimizer, scheduler, epoch, f"{log_dir}/model.pth")
 
 
+# tensorboard --log_dir . --bind_all
