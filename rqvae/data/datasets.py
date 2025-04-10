@@ -22,7 +22,7 @@ class AllCodes(Dataset):
     datasets = ["bwh",  "cfs",  "mesa", "mgh", "mros1",  "mros2",  "shhs1",  "shhs2",  "wsc"]
     channels = ['thorax', 'abdominal', 'rf']
         
-    def __init__(self, root, dataset = "shhs2", mode = "train", cv = 0, channels = {"thorax": 1.0}, max_length = 2 * 60 * 7):
+    def __init__(self, root, dataset = "shhs2", mode = "train", cv = 0, channels = {"thorax": 1.0}, max_length = 2 * 60 * 7, stack_every = None):
         assert mode in self.modes, 'Only support train, val, or test mode'
         assert dataset in self.datasets, f'Invalid dataset {dataset}'
         assert all([channel in self.channels for channel in channels.keys()]), f'Invalid channels {channels}'
@@ -33,6 +33,7 @@ class AllCodes(Dataset):
         self.channels = channels
         self.ds_dir = os.path.join(root, dataset)
         self.max_length = max_length
+        self.stack_every = stack_every
 
         # dataset preparation (only select the intersection between all channels)
         file_list = set()
@@ -66,6 +67,16 @@ class AllCodes(Dataset):
     def __len__(self):
         return len(self.file_list)
     
+    def stack(self, codes):
+        #codes shape T, D
+        #stack into T/stack_every, D*stack_every
+        T, D = codes.shape
+        # Check T is divisible by stack_every
+        assert T % self.stack_every == 0, "T must be divisible by stack_every"
+        # Reshape
+        codes_reshaped = codes.view(T // self.stack_every, self.stack_every, D).reshape(T // self.stack_every, D * self.stack_every)
+        return codes_reshaped
+    
     def __getitem__(self, idx):
         filename = self.file_list[idx]
 
@@ -94,6 +105,8 @@ class AllCodes(Dataset):
 
         codes = torch.tensor(codes, dtype=torch.int)
         codes = codes.permute(1, 0)  # Swaps D and T -> New shape: (B, T, D)
+        if self.stack_every is not None:
+            codes = self.stack(codes)
         # if self.soft:
         #     soft_codes = torch.tensor(soft_codes, dtype=torch.float32)
         #     soft_codes = soft_codes.permute(1, 0, 2)

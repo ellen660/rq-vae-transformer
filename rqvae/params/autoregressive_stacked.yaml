@@ -1,0 +1,81 @@
+exp_details:
+  name: autoregressive
+  description: 6_second_6_codebooks
+dataset:
+  path: /data/scratch/ellen660/encodec/encodec/predictions/no_discrim/6_seconds_6_codebooks/20250402/test
+  batch_size: 4
+  stack_every: 5
+  cv: 0
+  max_length: 4200
+  external: shhs1
+  mgh: 0.0
+  shhs2: 1.0
+  shhs1: 0.0
+  mros1: 0.0
+  mros2: 0.0
+  wsc: 0.0
+  cfs: 0.0
+  bwh: 0.0
+  mesa: 0.0
+  thorax: 1.0
+  abdominal: 0.0
+arch:
+  type: rq-transformer
+  block_size:
+    - 840
+    - 30
+  ema: false
+  embed_dim: 256
+  input_embed_dim: 256
+  shared_tok_emb: true
+  shared_cls_emb: true
+  input_emb_vqvae: false
+  head_emb_vqvae: false
+  cumsum_depth_ctx: true
+  vocab_size_cond: 1
+  block_size_cond: 1
+  vocab_size: 1024
+  embd_pdrop: 0.0
+  body:
+    n_layer: 12
+    block:
+      n_head: 16
+      embed_dim: 256
+  head:
+    n_layer: 12
+    block:
+      n_head: 16
+      embed_dim: 256
+loss:
+  type: soft_target_cross_entropy
+  soft: false
+  stochastic_codes: false
+  temp: 0.5
+  num_steps: 4
+optimizer:
+  type: adamW
+  init_lr: 0.0005
+  weight_decay: 0.0001
+  betas:
+    - 0.9
+    - 0.95
+  warmup:
+    epoch: 15
+    multiplier: 1
+    buffer_epoch: 0
+    min_lr: 0.0
+    mode: fix
+    start_from_zero: true
+  max_gn: 1.0
+common:
+  log_every: 5
+  save_every: 25
+  test_every: 10
+  max_epoch: 400
+  seed: 42
+  amp: false
+  gradient_clipping: true
+  gradient_clipping_value: 0.1
+  num_workers: 10
+  debug: false
+  distributed: false

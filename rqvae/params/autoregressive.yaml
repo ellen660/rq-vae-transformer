@@ -5,6 +5,7 @@ exp_details:
 dataset:
   path: '/data/scratch/ellen660/encodec/encodec/predictions/no_discrim/30_seconds/20250402/test'
   batch_size: 8
+  stack_every: None
   cv: 0
   max_length: 840
   external: shhs1
@@ -24,7 +25,6 @@ arch:
   type: rq-transformer
   block_size: [ 840, 32 ]
   ema: False
-  num_steps: 4
 
   embed_dim: 256
   input_embed_dim: 256
@@ -39,7 +39,7 @@ arch:
   block_size_cond: 1
   vocab_size: 512 #number of bins
 
-  embd_pdrop: 0.1 #default 0.0, 
+  embd_pdrop: 0.0 #default 0.0, 
 
   body:
     n_layer: 12 #16 body layers  #default 12 #24k/48k for 16
@@ -57,6 +57,7 @@ loss:
   soft: False
   stochastic_codes: False
   temp: 0.5 #Try 0.1
+  num_steps: 4
 
 optimizer: #warmup
   type: adamW
@@ -81,7 +82,6 @@ common:
   amp: False
   gradient_clipping: true
   gradient_clipping_value: 0.1
-  batch_size: 8
   num_workers: 10
   debug: False
   distributed: False #if false uses data parallel instead of ddp

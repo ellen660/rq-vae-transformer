@@ -31,13 +31,13 @@ def init_dataset(config, ddp=False):
         if ds_name == "bwh":
             channels = {"thorax": 1.0}
         if weight > 0:
-            train_datasets.append(AllCodes(root, dataset = ds_name, mode = "train", cv = cv, channels = channels, max_length = max_length))
-            val_datasets.append(AllCodes(root, dataset = ds_name, mode = "val", cv = cv, channels = channels, max_length = max_length))
+            train_datasets.append(AllCodes(root, dataset = ds_name, mode = "train", cv = cv, channels = channels, max_length = max_length, stack_every=config.dataset.stack_every))
+            val_datasets.append(AllCodes(root, dataset = ds_name, mode = "val", cv = cv, channels = channels, max_length = max_length, stack_every=config.dataset.stack_every))
             train_weight.append(float(weight))
             val_weight.append(float(weight))
 
     #Holdout/external dataset
-    val_datasets.append(AllCodes(root, dataset = config.dataset.external, mode = "val", cv = cv, channels = channels, max_length = max_length))
+    val_datasets.append(AllCodes(root, dataset = config.dataset.external, mode = "val", cv = cv, channels = channels, max_length = max_length, stack_every=config.dataset.stack_every))
     val_weight.append(1.)
 
     # merge the datasets

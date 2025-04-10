@@ -51,10 +51,11 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
 
         #Predict future steps
 
-        # for i in range(config.arch.num_steps-1):
-            # logits_i = predict_future(model, logits, tau=0.1)
-            # loss += model.module.compute_loss(logits_i, target[:, i+1:, :], use_soft_target=config.loss.soft)
-            # logits = logits_i
+        logits_i = logits
+        for i in range(config.loss.num_steps-1):
+            logits_i = predict_future(model, logits_i, tau=0.1)
+            loss += model.module.compute_loss(logits_i, target[:, i+1:, :], use_soft_target=config.loss.soft)
+        loss = loss / config.loss.num_steps
             
         # Predict two steps ahead
         # logits2 = predict_future(model, logits, tau=0.1)
@@ -225,6 +226,7 @@ def set_args():
     
     parser.add_argument("--config", type=str, default="autoregressive")
     parser.add_argument("--resume_from", type=str, default="")
+    parser.add_argument("--log_dir", type=str, default=None)
 
     return parser.parse_args()
 
@@ -241,8 +243,11 @@ if __name__ == "__main__":
     else:
         resume=False 
         config = load_config("rqvae/params/%s.yaml" % args.config)
-        curr_time, curr_min = time.strftime("%Y-%m-%d_%H-%M", time.localtime()).split("_")
-        log_dir = f'/data/scratch/ellen660/rq-vae-transformer/tensorboard/{config.exp_details.name}/{config.exp_details.description}/{curr_time}_{curr_min}/body_{config.arch.body.n_layer}layers_{config.arch.body.block.n_head}heads_head_{config.arch.head.n_layer}layers_{config.arch.head.block.n_head}heads_{config.arch.embd_pdrop}dropout'
+        if args.log_dir:
+            log_dir = args.log_dir
+        else:
+            curr_time, curr_min = time.strftime("%Y-%m-%d_%H-%M", time.localtime()).split("_")
+            log_dir = f'/data/scratch/ellen660/rq-vae-transformer/tensorboard/{config.exp_details.name}/{config.exp_details.description}/{curr_time}_{curr_min}/body_{config.arch.body.n_layer}layers_{config.arch.body.block.n_head}heads_head_{config.arch.head.n_layer}layers_{config.arch.head.block.n_head}heads_{config.arch.embd_pdrop}dropout'
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         # Load the YAML file
@@ -253,7 +258,7 @@ if __name__ == "__main__":
     train_loader, val_loader, train_mapping, val_mapping = init_dataset(config, ddp=False)
     model, model_ema = init_model(config)
     model = model.to(device)
-    if torch.cuda.device_count() > 1:
+    if not config.common.distributed:
         model = nn.DataParallel(model)
 
     optimizer = create_optimizer(model, config)
