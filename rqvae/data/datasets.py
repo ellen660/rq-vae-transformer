@@ -86,7 +86,7 @@ class AllCodes(Dataset):
         codes = np.load(filepath)['data'].squeeze()
         fs = np.load(filepath)['fs']
 
-        if self.mode == "train":
+        if self.mode == "train" or self.mode == "test":
             codes_length = codes.shape[1] - self.max_length
             #randomly sample start index
             try:
@@ -100,8 +100,8 @@ class AllCodes(Dataset):
             codes = codes[:, start_idx:start_idx+self.max_length]
         elif self.mode == "val":
             codes = codes[:, :self.max_length]
-        elif self.mode == "test":
-            codes = codes
+        # elif self.mode == "test":
+        #     codes = codes
 
         codes = torch.tensor(codes, dtype=torch.int)
         codes = codes.permute(1, 0)  # Swaps D and T -> New shape: (B, T, D)
