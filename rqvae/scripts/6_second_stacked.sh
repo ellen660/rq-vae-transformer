@@ -37,6 +37,7 @@ for lr in "${lr_list[@]}"; do
       hyperparameters[".optimizer.init_lr"]=$lr
       hyperparameters[".dataset.batch_size"]=$batch_size
       hyperparameters[".loss.num_steps"]=$num_steps
+      hyperparameters[".dataset.stack_every"]=$stack_every
 
       yq -yi '.exp_details.description = "6_second_6_codebooks"' "$path"
 
@@ -60,6 +61,6 @@ for lr in "${lr_list[@]}"; do
 
       # Run the Python training script with the updated parameters
       python train_clean.py --config "$yaml_file" --log_dir "$log_dir" --resume_from "$resume_from"
+      done
     done
-  done
 done

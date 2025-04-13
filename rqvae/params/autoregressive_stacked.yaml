@@ -1,32 +1,32 @@
 exp_details:
-  name: autoregressive
+  name: autoregressive_stacked
   description: 6_second_6_codebooks
 dataset:
   path: /data/scratch/ellen660/encodec/encodec/predictions/no_discrim/6_seconds_6_codebooks/20250402/test
-  batch_size: 4
-  stack_every: 5
+  batch_size: 6
+  stack_every: 1
   cv: 0
-  max_length: 4200
+  max_length: 2100
   external: shhs1
-  mgh: 0.0
-  shhs2: 1.0
-  shhs1: 0.0
-  mros1: 0.0
-  mros2: 0.0
-  wsc: 0.0
-  cfs: 0.0
-  bwh: 0.0
-  mesa: 0.0
-  thorax: 1.0
-  abdominal: 0.0
+  mgh: 0
+  shhs2: 1
+  shhs1: 0
+  mros1: 0
+  mros2: 0
+  wsc: 0
+  cfs: 0
+  bwh: 0
+  mesa: 0
+  thorax: 1
+  abdominal: 0
 arch:
   type: rq-transformer
   block_size:
-    - 840
-    - 30
+    - 2100
+    - 6
   ema: false
-  embed_dim: 256
-  input_embed_dim: 256
+  embed_dim: 64
+  input_embed_dim: 64
   shared_tok_emb: true
   shared_cls_emb: true
   input_emb_vqvae: false
@@ -35,23 +35,23 @@ arch:
   vocab_size_cond: 1
   block_size_cond: 1
   vocab_size: 1024
-  embd_pdrop: 0.0
+  embd_pdrop: 0
   body:
     n_layer: 12
     block:
       n_head: 16
-      embed_dim: 256
+      embed_dim: 64
   head:
     n_layer: 12
     block:
       n_head: 16
-      embed_dim: 256
+      embed_dim: 64
 loss:
   type: soft_target_cross_entropy
   soft: false
   stochastic_codes: false
   temp: 0.5
-  num_steps: 4
+  num_steps: 1
 optimizer:
   type: adamW
   init_lr: 0.0005
@@ -63,10 +63,10 @@ optimizer:
     epoch: 15
     multiplier: 1
     buffer_epoch: 0
-    min_lr: 0.0
+    min_lr: 0
     mode: fix
     start_from_zero: true
-  max_gn: 1.0
+  max_gn: 1
 common:
   log_every: 5
   save_every: 25
