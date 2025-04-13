@@ -87,6 +87,7 @@ class RQTransformer(Stage2Model):
         # ==== AR modeling layer definitions ====
         self.body_transformer = AttentionStack(config.body, mask=False) #bidirectional now
         self.head_transformer = AttentionStack(config.head, mask=True)
+        self.layer_norm = nn.LayerNorm(config.embed_dim)
 
         #print number of parameters in body transformer
         # num_params = sum(p.numel() for p in self.body_transformer.parameters() if p.requires_grad)
@@ -168,6 +169,63 @@ class RQTransformer(Stage2Model):
                     xs_emb = self.tok_emb(xs)
 
             conds_emb = self.cond_emb(cond) + self.pos_emb_cond[:, :cond_len, :] #embed transformer
+            # if not self.training:
+            #     with torch.no_grad():
+            #         print(f'xs_emb {xs_emb.shape}')
+            #         pos_emb_slice = self.pos_emb_hw[:, :seq_len, :]
+            #         print(f'pos emb slice {pos_emb_slice.shape}')
+            #         xs_sum = xs_emb.sum(dim=-2)
+            #         print(f'xs sum {xs_sum.shape}')
+            #         xs_emb = xs_emb.sum(dim=-2) + self.pos_emb_hw[:, :seq_len, :]
+            #         # sys.exit()
+            #         # print(f'stats for xs_emb')
+            #         # print("  min:", xs_emb[0][0].min().item())
+            #         # print("  max:", xs_emb[0][0].max().item())
+            #         # print("  mean:", xs_emb[0][0].mean().item())   
+            #         # print("  std:", xs_emb[0][0].std().item())
+            #         print(f'stats for pos_emb_slice')
+            #         print(f'shape {pos_emb_slice[0][0].shape}')
+            #         print("  min:", pos_emb_slice[0][0].min().item())
+            #         print("  max:", pos_emb_slice[0][0].max().item())
+            #         print("  mean:", pos_emb_slice[0][0].mean().item())
+            #         print("  std:", pos_emb_slice[0][0].std().item())
+            #         print(f'stats for xs_sum')
+            #         print(f'shape {xs_sum[0][0].shape}')
+            #         print("  min:", xs_sum[0][0].min().item())
+            #         print("  max:", xs_sum[0][0].max().item())
+            #         print("  mean:", xs_sum[0][0].mean().item())
+            #         print("  std:", xs_sum[0][0].std().item())
+            #         print(f'stats for xs_emb')
+            #         print(f'shape {xs_emb[0][0].shape}')
+            #         print("  min:", xs_emb[0][0].min().item())
+            #         print("  max:", xs_emb[0][0].max().item())
+            #         print("  mean:", xs_emb[0][0].mean().item())
+            #         print("  std:", xs_emb[0][0].std().item())
+            #         print(f'sum for xs_emb')
+            #         print(f'{xs_emb[0][0]}')
+            #         print(f'vs')
+            #         print(f'{xs_sum[0][0]+pos_emb_slice[0][0]}')
+
+            #         print(f'first ')
+            #         # print("  min:", xs_emb[0][1].min().item())
+            #         # print("  max:", xs_emb[0][1].max().item())
+            #         # print("  mean:", xs_emb[0][1].mean().item())   
+            #         # print("  std:", xs_emb[0][1].std().item())
+            #         print(f'stats for pos_emb_slice')
+            #         print(f'shape {pos_emb_slice[0][1].shape}')
+            #         print("  min:", pos_emb_slice[0][1].min().item())
+            #         print("  max:", pos_emb_slice[0][1].max().item())
+            #         print("  mean:", pos_emb_slice[0][1].mean().item())
+            #         print("  std:", pos_emb_slice[0][1].std().item())
+            #         print(f'stats for xs_sum')
+            #         print(f'shape {xs_sum[0][1].shape}')
+            #         print("  min:", xs_sum[0][1].min().item())
+            #         print("  max:", xs_sum[0][1].max().item())
+            #         print("  mean:", xs_sum[0][1].mean().item())
+            #         print("  std:", xs_sum[0][1].std().item())
+
+            #         sys.exit()
+
             xs_emb = xs_emb.sum(dim=-2) + self.pos_emb_hw[:, :seq_len, :]
             latents = xs_emb
             # NOTE: dropout applied after everything is combined, not as before
@@ -182,8 +240,25 @@ class RQTransformer(Stage2Model):
             # body_mem = torch.cuda.max_memory_allocated() / (1024 ** 2)
             # # print(f'body transformer time {time.time()-start_time:.2f}s')
             # print(f'body transformer peak memory: {body_mem:.2f} MB')
+            # print(f'latents output {latents.shape}') #B, T, embed_dim
 
             spatial_ctx = latents[:, cond_len-1:] #basically T dim
+            # print(f'context vector {spatial_ctx.shape}') #B, T, embed_dim
+            # print(f'spatial ctx dim {spatial_ctx.shape}')
+            # #min, max, mean, std
+            # if not self.training:
+            #     with torch.no_grad():
+            #         print("spatial_ctx stats:")
+            #         print(f'shape {spatial_ctx[0][0].shape}')
+            #         print("  min:", spatial_ctx[0][0].min().item())
+            #         print("  max:", spatial_ctx[0][0].max().item())
+            #         print("  mean:", spatial_ctx[0][0].mean().item())
+            #         print("  std:", spatial_ctx[0][0].std().item())
+            #         print(f'shape {spatial_ctx[0][1].shape}')  
+            #         print("  min:", spatial_ctx[0][1].min().item())
+            #         print("  max:", spatial_ctx[0][1].max().item())
+            #         print("  mean:", spatial_ctx[0][1].mean().item())
+            #         print("  std:", spatial_ctx[0][1].std().item())
 
             # if cond_len > 1, compute the logits for conditioning sequence.
             if cond_len > 1:
@@ -207,14 +282,59 @@ class RQTransformer(Stage2Model):
             # NOTE: We are no longer applying spatial positional embedding to depth_ctx.
             # depth_ctx = depth_ctx + self.pos_emb_hw[:, :seq_len, :]
 
+            #normalize spatial_ctx
+            spatial_ctx = self.layer_norm(spatial_ctx)
+
             depth_ctx_full = torch.cat(
                 [
-                    spatial_ctx.view(B, seq_len, 1, -1),
-                    depth_ctx[:, :, :-1, :],
+                    spatial_ctx.view(B, seq_len, 1, -1), #B, seq_len, 1, embed_dim
+                    depth_ctx[:, :, :-1, :], #B, seq_len, D-1, embed_dim
                 ],
                 dim=-2,
             )
             depth_ctx_full = depth_ctx_full.reshape(B * seq_len, D, -1)
+
+            # if not self.training:
+            #     with torch.no_grad():
+            #         print("depth_ctx_full stats:")
+            #         print(f'shape {depth_ctx_full[0][0].shape}')
+            #         print("  min:", depth_ctx_full[0][0].min().item())
+            #         print("  max:", depth_ctx_full[0][0].max().item())
+            #         print("  mean:", depth_ctx_full[0][0].mean().item())
+            #         print("  std:", depth_ctx_full[0][0].std().item())
+            #         print(f'shape {depth_ctx_full[0][1].shape}')  
+            #         print("  min:", depth_ctx_full[0][1].min().item())
+            #         print("  max:", depth_ctx_full[0][1].max().item())
+            #         print("  mean:", depth_ctx_full[0][1].mean().item())
+            #         print("  std:", depth_ctx_full[0][1].std().item())
+
+            #         #and also 
+
+            #         print("pos_emb_d stats:")
+            #         pos_emb_slice = self.pos_emb_d[:, :D, :]
+            #         print(f'shape {pos_emb_slice[0][0].shape}')
+            #         print("  min:", pos_emb_slice[0][0].min().item())
+            #         print("  max:", pos_emb_slice[0][0].max().item())
+            #         print("  mean:", pos_emb_slice[0][0].mean().item())
+            #         print("  std:", pos_emb_slice[0][0].std().item())
+            #         print(f'first')
+            #         print(f'shape {pos_emb_slice[0][1].shape}')
+            #         print("  min:", pos_emb_slice[0][1].min().item())
+            #         print("  max:", pos_emb_slice[0][1].max().item())
+            #         print("  mean:", pos_emb_slice[0][1].mean().item())
+            #         print("  std:", pos_emb_slice[0][1].std().item())
+                    
+            #         # print(f"0 dimension {depth_ctx_full[0][0]}")
+            #         # print(f"1 dimension {depth_ctx_full[0][1]}")
+            #         # print(f"0 dimension {depth_ctx_full[1][0]}")
+            #         # print(f'pos_emb_d {pos_emb_slice}')
+
+            #         test = depth_ctx_full + pos_emb_slice
+            #         print(f'test {test[0][0] - pos_emb_slice[0][0] - depth_ctx_full[0][0]}')
+            #         print(f'test {test[0][1] - pos_emb_slice[0][1] - depth_ctx_full[0][1]}')
+            #         print(f'test {test[1][0] - pos_emb_slice[0][0] - depth_ctx_full[1][0]}')
+            #     sys.exit()
+                
             depth_ctx_full = depth_ctx_full + self.pos_emb_d[:, :D, :]
 
             # head transformer & final fc (classifier)

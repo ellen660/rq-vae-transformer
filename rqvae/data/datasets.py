@@ -26,7 +26,7 @@ class AllCodes(Dataset):
         assert mode in self.modes, 'Only support train, val, or test mode'
         assert dataset in self.datasets, f'Invalid dataset {dataset}'
         assert all([channel in self.channels for channel in channels.keys()]), f'Invalid channels {channels}'
-        assert 0 < masking < 1, f'Masking should be between 0 and 1, got {masking}'
+        assert 0 <= masking < 1, f'Masking should be between 0 and 1, got {masking}'
 
         self.dataset = dataset
         self.mode = mode
@@ -110,7 +110,7 @@ class AllCodes(Dataset):
         codes = np.load(filepath)['data'].squeeze()
         fs = np.load(filepath)['fs']
 
-        if self.mode == "train":
+        if self.mode == "train" or self.mode == "test":
             codes_length = codes.shape[1] - self.max_length
             #randomly sample start index
             try:
@@ -124,8 +124,8 @@ class AllCodes(Dataset):
             codes = codes[:, start_idx:start_idx+self.max_length]
         elif self.mode == "val":
             codes = codes[:, :self.max_length]
-        elif self.mode == "test":
-            codes = codes
+        # elif self.mode == "test":
+        #     codes = codes
 
         codes = torch.tensor(codes, dtype=torch.long)
         assert codes.max() < self.vocab_size, f"codes max {codes.max()} is greater than vocab size {self.vocab_size}"

@@ -6,7 +6,7 @@ path="/data/scratch/ellen660/rq-vae-transformer/rqvae/params/$yaml_file.yaml"
 # export CUDA_VISIBLE_DEVICES=0,1,2,3
 export CUDA_VISIBLE_DEVICES=0,1,4,5,6,7
 # export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-run_name="30_seconds"
+run_name="30_seconds_with_layernorm"
 resume_from=""
 
 # Set PATH_TO_USE based on whether RESUME_PATH is empty or not
@@ -28,8 +28,8 @@ hyperparameters=(
 
 #Iterate over a bunch 
 lr_list=("0.0005")  
-batch_size_list=("6")  
-masking_ratio=("0.75")
+batch_size_list=("12")  
+masking_ratio=("0.5")
 
 # Iterate over all combinations of hyperparameters
 for lr in "${lr_list[@]}"; do

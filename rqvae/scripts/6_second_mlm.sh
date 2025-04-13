@@ -3,9 +3,9 @@
 # Path to the YAML file
 yaml_file="mlm_6"
 path="/data/scratch/ellen660/rq-vae-transformer/rqvae/params/$yaml_file.yaml"
-export CUDA_VISIBLE_DEVICES=4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 run_name="6_seconds_6_codebooks_no_stacking"
-resume_from=""
+resume_from="/data/scratch/ellen660/rq-vae-transformer/tensorboard/mlm_6/6_seconds_6_codebooks_no_stacking/20250409-0152/ max_epoch=400 masking_ratio=0.5 batch_size=4 init_lr=0.0005"
 
 # Set PATH_TO_USE based on whether RESUME_PATH is empty or not
 if [ -n "$resume_from" ]; then

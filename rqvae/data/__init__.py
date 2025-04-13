@@ -55,3 +55,31 @@ def init_dataset(config, ddp=False):
         val_sampler = torch.utils.data.distributed.DistributedSampler(val_dataset, shuffle=False, drop_last=True)
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=config.dataset.batch_size, shuffle=False, sampler=val_sampler, num_workers=config.common.num_workers, pin_memory=True)
         return train_loader, val_loader, train_dataset.mapping, val_dataset.mapping
+    
+
+def test_dataset(config):
+    cv = config.dataset.cv
+    max_length = config.dataset.max_length
+    root = config.dataset.path
+    weights = {
+        "mgh": config.dataset.mgh,
+        "shhs2": config.dataset.shhs2,
+        "shhs1": config.dataset.shhs1,
+        "mros1": config.dataset.mros1,
+        "mros2": config.dataset.mros2,
+        "wsc": config.dataset.wsc,
+        "cfs": config.dataset.cfs,
+        "bwh": config.dataset.bwh,
+    }
+    test_datasets = {}
+
+    channels = {'thorax': config.dataset.thorax, 'abdominal': config.dataset.abdominal}
+    for ds_name, weight in weights.items():
+        if ds_name == "bwh":
+            channels = {"thorax": 1.0}
+        if weight > 0:
+            dataset = AllCodes(root, dataset = ds_name, mode = "test", cv = cv, channels = channels, max_length = max_length, masking = 0.0, vocab_size = config.arch.vocab_size-1)
+            test_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=config.common.num_workers)
+            test_datasets[ds_name] = test_loader
+
+    return test_datasets

@@ -6,14 +6,14 @@ import torch.nn.functional as F
 @dataclass
 class MetricsArgs():
     device: str
-    num_classes: int
+    # num_classes: int
 
 class Metrics():
     def __init__(self, args: MetricsArgs):
         self.args = args 
         self.used_keys = {}
         self.init_metrics()
-        self.auroc = torchmetrics.AUROC(task="multiclass", num_classes=self.args.num_classes).to(self.args.device)
+        # self.auroc = torchmetrics.AUROC(task="multiclass", num_classes=self.args.num_classes).to(self.args.device)
 
     def init_metrics(self):
         self.metrics_dict = {

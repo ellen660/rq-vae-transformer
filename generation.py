@@ -6,9 +6,8 @@ import sys
 import rqvae.utils.dist as dist_utils
 from rqvae.models import create_model
 from rqvae.models.rqtransformer.configs import RQTransformerConfig, AttentionStackConfig, AttentionBlockConfig
-from rqvae.my_code.shhs2_codes import Shhs2Dataset
-from rqvae.my_code.metrics import Metrics, MetricsArgs
-from rqvae.my_code.loss import compute_loss
+from rqvae.losses import compute_loss, Metrics, MetricsArgs, LinearWarmupCosineAnnealingLR
+from rqvae.data import test_dataset
 from rqvae.optimizer import create_optimizer, create_scheduler
 from rqvae.utils.utils import set_seed, compute_model_size, get_num_conv_linear_layers
 # from rqvae.utils.setup import setup
@@ -37,8 +36,8 @@ encoded_path = os.path.abspath("../encodec")  # Adjust path if necessary
 sys.path.append(encoded_path)
 
 # Now import the model
-from encodec import EncodecModel
-from encodec.my_code.spectrogram_loss import ReconstructionLoss, ReconstructionLosses
+# from encodec import EncodecModel
+# from encodec.my_code.spectrogram_loss import ReconstructionLoss, ReconstructionLosses
 
 @torch.no_grad()
 def plot_attention_matrix(model, val_loader, config, save_dir):
@@ -81,7 +80,7 @@ def test(model, rvqvae, val_loader, config, save_dir):
 
     progress_bar = tqdm(val_loader, desc=f"Generation", unit="batch")
 
-    for i, item in enumerate(progress_bar):
+    for i, (item) in enumerate(progress_bar):
         if i>=10:
             break
         x = item["x"]
@@ -148,26 +147,28 @@ def test(model, rvqvae, val_loader, config, save_dir):
         plt.show()
         # breakpoint()
 
-def generate_embeddings(model, rvqvae, data_loader, config, save_dir):
+def generate_embeddings(model, ds_name, data_loader, save_dir):
     model.eval()
-    rvqvae.eval()
+    # rvqvae.eval()
 
     progress_bar = tqdm(data_loader, desc=f"Generation", unit="batch")
 
-    for i, item in enumerate(progress_bar):
+    for i, (item) in enumerate(progress_bar):
         x = item["x"]
         x = x.to(device)
 
         embeddings = model(x, return_embeddings=True)  # Forward pass
-        # print(f'embedding shape {embeddings.shape}')
-        x = x.permute(2, 0, 1)
-        quantized_actual = rvqvae.quantizer.decode(x) #D, B, T
-        quantized_actual = quantized_actual.permute(0, 2, 1)
+        print(f'embedding shape {embeddings.shape}')
+        # x = x.permute(2, 0, 1)
+        # quantized_actual = rvqvae.quantizer.decode(x) #D, B, T
+        # quantized_actual = quantized_actual.permute(0, 2, 1)
         # print(f'rvqvae shape {quantized_actual.shape}')
+        # quantized=quantized_actual.squeeze().cpu().detach().numpy(), 
+        # print(f'x shape {x.shape}')
 
         # Save the codes
-        save_path = os.path.join(save_dir, item["filename"][0])
-        np.savez(save_path, transformer=embeddings.squeeze().cpu().detach().numpy(), quantized=quantized_actual.squeeze().cpu().detach().numpy(), gender=item["gender"][0])
+        save_path = os.path.join(save_dir, ds_name, item["filename"][0])
+        np.savez(save_path, transformer=embeddings.squeeze().cpu().detach().numpy())
         # breakpoint()
 
 class ConfigNamespace:
@@ -183,17 +184,6 @@ def load_config(filepath):
     with open(filepath, "r") as file:
         config_dict = yaml.safe_load(file)
     return ConfigNamespace(config_dict)
-
-def init_dataset(config):
-    train_dataset = Shhs2Dataset(mode="train", cv=config.dataset.cv, max_length=config.dataset.max_length)
-    val_dataset = Shhs2Dataset(mode="val", cv=config.dataset.cv, max_length=config.dataset.max_length)
-    test_dataset = Shhs2Dataset(mode="test", cv=config.dataset.cv, max_length=config.dataset.max_length)
-    
-    train_loader = DataLoader(train_dataset, batch_size=config.dataset.batch_size, shuffle=True, num_workers=config.dataset.num_workers)
-    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=config.dataset.num_workers)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=config.dataset.num_workers)
-
-    return train_loader, val_loader, test_loader
 
 def init_model(config):
     def recursive_namespace_to_dataclass(namespace, dataclass_type):
@@ -276,54 +266,56 @@ def set_args():
     parser = argparse.ArgumentParser()
     
     parser.add_argument("--config", type=str, default="test")
-    parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250218/body_12layers_16heads_head_12layers_16heads") #1step
+    parser.add_argument("--model_path", type=str, default=f"mlm/30_seconds/20250409-0153/ max_epoch=400 masking_ratio=0.75 batch_size=6 init_lr=0.0005") #1step
     # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout")# 4step
     # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/mlm/20250306/093732/body_12layers_16heads_head_12layers_16heads_0.0dropout")
     return parser.parse_args()
 
 if __name__ == "__main__":
-    save_dir = f'/data/scratch/ellen660/rq-vae-transformer/predictions/embeddings'
-    os.makedirs(save_dir, exist_ok=True)
     args = set_args()
     user_name = os.getlogin()
 
-    checkpoint_path = args.model_path
+    save_dir = f'/data/scratch/ellen660/rq-vae-transformer/predictions'
+    save_dir = os.path.join(save_dir, args.model_path)
+    checkpoint_path = f'/data/scratch/ellen660/rq-vae-transformer/tensorboard/{args.model_path}'
     # checkpoint_paths = [f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250218/body_12layers_16heads_head_12layers_16heads", f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout"]
 
     # Load the YAML file
     config = load_config(f"{checkpoint_path}/config.yaml")
 
     set_seed(config.common.seed)
-    # data_parallel = config.distributed.data_parallel
     device = torch.device("cuda")
-    # breakpoint()
-
-    metrics_args = MetricsArgs(num_classes=config.arch.vocab_size, device=device)
-    metrics = Metrics(metrics_args)
-
-    train_loader, val_loader, test_loader = init_dataset(config)
+    test_datasets = test_dataset(config)
+    for ds_name in test_datasets:
+        os.makedirs(os.path.join(save_dir, ds_name), exist_ok=True)
 
     model, model_ema = init_model(config)
     model = model.to(device)
+
     checkpoint = torch.load(f"{checkpoint_path}/model.pth", map_location=device)
+    # breakpoint()
     model.load_state_dict(checkpoint['model_state_dict'])
 
-    rqvae_dir = "/data/scratch/ellen660/encodec/encodec/tensorboard/091224_l1/20250209/142145"
-    rqvae_config = load_rqvae_config(f'{rqvae_dir}/config.yaml', rqvae_dir)
-    model_rqvae = init_rqvae_model(rqvae_config)
-    model_rqvae = model_rqvae.to(device)
-    checkpoint_rvqvae = torch.load(f"{rqvae_dir}/model.pth", map_location=device)
-    freq_loss = ReconstructionLoss(alpha=rqvae_config.loss.alpha, bandwidth=rqvae_config.loss.bandwidth, sampling_rate=10, n_fft=rqvae_config.loss.n_fft, device=device)
+    # rqvae_dir = "/data/scratch/ellen660/encodec/encodec/tensorboard/091224_l1/20250209/142145"
+    # rqvae_config = load_rqvae_config(f'{rqvae_dir}/config.yaml', rqvae_dir)
+    # model_rqvae = init_rqvae_model(rqvae_config)
+    # model_rqvae = model_rqvae.to(device)
+    # checkpoint_rvqvae = torch.load(f"{rqvae_dir}/model.pth", map_location=device)
+    # freq_loss = ReconstructionLoss(alpha=rqvae_config.loss.alpha, bandwidth=rqvae_config.loss.bandwidth, sampling_rate=10, n_fft=rqvae_config.loss.n_fft, device=device)
 
     # checkpoint_disc = torch.load(checkpoint_path_disc, map_location=device)
 
-    model_rqvae.load_state_dict(checkpoint_rvqvae)
+    # model_rqvae.load_state_dict(checkpoint_rvqvae)
     # disc.load_state_dict(checkpoint_disc)
     print("checkpoint loaded successfully")
 
     # test(model, model_rqvae, val_loader, config, save_dir)
     # generate_embeddings(model, model_rqvae, test_loader, config, save_dir)
-    matrices = plot_attention_matrix(model, val_loader, config, save_dir)
+    for ds_name, test_loader in test_datasets.items():
+        print(f"Testing {ds_name} dataset")
+        generate_embeddings(model, ds_name, test_loader, save_dir)
+        # plot_most_frequent_signals(ds_name, pivot, model, save_dir, config, device)
+        # matrices = plot_attention_matrix(model, test_loader, config, save_dir)
     # breakpoint()
 
 

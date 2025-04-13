@@ -121,6 +121,7 @@ class AttentionBlock(nn.Module):
 
         self.ln1 = nn.LayerNorm(config.embed_dim)
         self.ln2 = nn.LayerNorm(config.embed_dim)
+        # self.final_ln = nn.LayerNorm(config.embed_dim)
 
         self.attn = MultiSelfAttention(config, mask=mask)
         self.mlp = nn.Sequential(
@@ -140,6 +141,8 @@ class AttentionBlock(nn.Module):
 
         x = x + attn
         x = x + self.mlp(self.ln2(x))
+
+        # x = self.final_ln(x) #EXPERIMENTAL
 
         return x
 
@@ -176,7 +179,7 @@ class AttentionStack(nn.Module):
 
     def forward(self, x):
         for block in self.blocks:
-            x = block(x)
+            x = block(x) #B, T, embed_dim
         return x
 
     def cached_forward(self, x_present):
