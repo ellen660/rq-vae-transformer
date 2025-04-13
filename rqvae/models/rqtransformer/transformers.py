@@ -87,7 +87,7 @@ class RQTransformer(Stage2Model):
         # ==== AR modeling layer definitions ====
         self.body_transformer = AttentionStack(config.body, mask=False) #bidirectional now
         self.head_transformer = AttentionStack(config.head, mask=True)
-        self.layer_norm = nn.LayerNorm(config.embed_dim)
+        # self.layer_norm = nn.LayerNorm(config.embed_dim)
 
         #print number of parameters in body transformer
         # num_params = sum(p.numel() for p in self.body_transformer.parameters() if p.requires_grad)
@@ -283,7 +283,7 @@ class RQTransformer(Stage2Model):
             # depth_ctx = depth_ctx + self.pos_emb_hw[:, :seq_len, :]
 
             #normalize spatial_ctx
-            spatial_ctx = self.layer_norm(spatial_ctx)
+            # spatial_ctx = self.layer_norm(spatial_ctx)
 
             depth_ctx_full = torch.cat(
                 [
