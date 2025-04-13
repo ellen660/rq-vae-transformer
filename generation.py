@@ -158,7 +158,7 @@ def generate_embeddings(model, ds_name, data_loader, save_dir):
         x = x.to(device)
 
         embeddings = model(x, return_embeddings=True)  # Forward pass
-        print(f'embedding shape {embeddings.shape}')
+        # print(f'embedding shape {embeddings.shape}')
         # x = x.permute(2, 0, 1)
         # quantized_actual = rvqvae.quantizer.decode(x) #D, B, T
         # quantized_actual = quantized_actual.permute(0, 2, 1)
@@ -266,57 +266,67 @@ def set_args():
     parser = argparse.ArgumentParser()
     
     parser.add_argument("--config", type=str, default="test")
-    parser.add_argument("--model_path", type=str, default=f"mlm/30_seconds/20250409-0153/ max_epoch=400 masking_ratio=0.75 batch_size=6 init_lr=0.0005") #1step
+    # parser.add_argument("--model_path", type=str, default=f"mlm/30_seconds/20250409-0153/ max_epoch=400 masking_ratio=0.75 batch_size=6 init_lr=0.0005") #1step
     # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout")# 4step
     # parser.add_argument("--model_path", type=str, default=f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/mlm/20250306/093732/body_12layers_16heads_head_12layers_16heads_0.0dropout")
     return parser.parse_args()
 
 if __name__ == "__main__":
-    args = set_args()
+    # args = set_args()
+    model_paths ={
+        # "BERT style masking ratio 0.5, 30 sec tokens": "mlm/30_seconds/20250408-1218/ max_epoch=400 masking_ratio=0.5 batch_size=8 lr=0.0005",
+        # "BERT style masking ratio 0.6, 30 sec tokens": "mlm/30_seconds/20250410-1400/ max_epoch=400 masking_ratio=0.6 batch_size=6 init_lr=0.0005",
+        # "BERT style masking ratio 0.75, 30 sec tokens": "mlm/30_seconds/20250409-0153/ max_epoch=400 masking_ratio=0.75 batch_size=6 init_lr=0.0005",
+        # "BERT style masking ratio 0.5, 6 second tokens": None,
+        "BERT style masking ratio 0.5 with layer norm": "mlm/30_seconds_with_layernorm/20250411-2103/ max_epoch=400 masking_ratio=0.5 batch_size=12 init_lr=0.0005",
+    }
+
     user_name = os.getlogin()
 
-    save_dir = f'/data/scratch/ellen660/rq-vae-transformer/predictions'
-    save_dir = os.path.join(save_dir, args.model_path)
-    checkpoint_path = f'/data/scratch/ellen660/rq-vae-transformer/tensorboard/{args.model_path}'
-    # checkpoint_paths = [f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250218/body_12layers_16heads_head_12layers_16heads", f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout"]
 
-    # Load the YAML file
-    config = load_config(f"{checkpoint_path}/config.yaml")
+    for model_name, model_path in model_paths.items():
+        save_dir = f'/data/scratch/ellen660/rq-vae-transformer/predictions'
+        save_dir = os.path.join(save_dir, model_name)
+        checkpoint_path = f'/data/scratch/ellen660/rq-vae-transformer/tensorboard/{model_path}'
+        # checkpoint_paths = [f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250218/body_12layers_16heads_head_12layers_16heads", f"/data/scratch/ellen660/rq-vae-transformer/tensorboard/test/20250227/220723/body_12layers_16heads_head_12layers_16heads_0.1dropout"]
 
-    set_seed(config.common.seed)
-    device = torch.device("cuda")
-    test_datasets = test_dataset(config)
-    for ds_name in test_datasets:
-        os.makedirs(os.path.join(save_dir, ds_name), exist_ok=True)
+        # Load the YAML file
+        config = load_config(f"{checkpoint_path}/config.yaml")
 
-    model, model_ema = init_model(config)
-    model = model.to(device)
+        set_seed(config.common.seed)
+        device = torch.device("cuda")
+        test_datasets = test_dataset(config)
+        for ds_name in test_datasets:
+            os.makedirs(os.path.join(save_dir, ds_name), exist_ok=True)
 
-    checkpoint = torch.load(f"{checkpoint_path}/model.pth", map_location=device)
-    # breakpoint()
-    model.load_state_dict(checkpoint['model_state_dict'])
+        model, model_ema = init_model(config)
+        model = model.to(device)
 
-    # rqvae_dir = "/data/scratch/ellen660/encodec/encodec/tensorboard/091224_l1/20250209/142145"
-    # rqvae_config = load_rqvae_config(f'{rqvae_dir}/config.yaml', rqvae_dir)
-    # model_rqvae = init_rqvae_model(rqvae_config)
-    # model_rqvae = model_rqvae.to(device)
-    # checkpoint_rvqvae = torch.load(f"{rqvae_dir}/model.pth", map_location=device)
-    # freq_loss = ReconstructionLoss(alpha=rqvae_config.loss.alpha, bandwidth=rqvae_config.loss.bandwidth, sampling_rate=10, n_fft=rqvae_config.loss.n_fft, device=device)
+        checkpoint = torch.load(f"{checkpoint_path}/model.pth", map_location=device)
+        # breakpoint()
+        model.load_state_dict(checkpoint['model_state_dict'])
 
-    # checkpoint_disc = torch.load(checkpoint_path_disc, map_location=device)
+        # rqvae_dir = "/data/scratch/ellen660/encodec/encodec/tensorboard/091224_l1/20250209/142145"
+        # rqvae_config = load_rqvae_config(f'{rqvae_dir}/config.yaml', rqvae_dir)
+        # model_rqvae = init_rqvae_model(rqvae_config)
+        # model_rqvae = model_rqvae.to(device)
+        # checkpoint_rvqvae = torch.load(f"{rqvae_dir}/model.pth", map_location=device)
+        # freq_loss = ReconstructionLoss(alpha=rqvae_config.loss.alpha, bandwidth=rqvae_config.loss.bandwidth, sampling_rate=10, n_fft=rqvae_config.loss.n_fft, device=device)
 
-    # model_rqvae.load_state_dict(checkpoint_rvqvae)
-    # disc.load_state_dict(checkpoint_disc)
-    print("checkpoint loaded successfully")
+        # checkpoint_disc = torch.load(checkpoint_path_disc, map_location=device)
 
-    # test(model, model_rqvae, val_loader, config, save_dir)
-    # generate_embeddings(model, model_rqvae, test_loader, config, save_dir)
-    for ds_name, test_loader in test_datasets.items():
-        print(f"Testing {ds_name} dataset")
-        generate_embeddings(model, ds_name, test_loader, save_dir)
-        # plot_most_frequent_signals(ds_name, pivot, model, save_dir, config, device)
-        # matrices = plot_attention_matrix(model, test_loader, config, save_dir)
-    # breakpoint()
+        # model_rqvae.load_state_dict(checkpoint_rvqvae)
+        # disc.load_state_dict(checkpoint_disc)
+        print("checkpoint loaded successfully")
+
+        # test(model, model_rqvae, val_loader, config, save_dir)
+        # generate_embeddings(model, model_rqvae, test_loader, config, save_dir)
+        for ds_name, test_loader in test_datasets.items():
+            print(f"Testing {ds_name} dataset")
+            generate_embeddings(model, ds_name, test_loader, save_dir)
+            # plot_most_frequent_signals(ds_name, pivot, model, save_dir, config, device)
+            # matrices = plot_attention_matrix(model, test_loader, config, save_dir)
+        # breakpoint()
 
 
 # def plot_most_frequent_signals(ds_name, pivot, model, save_dir, config, device):
