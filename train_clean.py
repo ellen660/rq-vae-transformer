@@ -258,8 +258,6 @@ if __name__ == "__main__":
     train_loader, val_loader, train_mapping, val_mapping = init_dataset(config, ddp=False)
     model, model_ema = init_model(config)
     model = model.to(device)
-    if not config.common.distributed:
-        model = nn.DataParallel(model)
 
     optimizer = create_optimizer(model, config)
     scheduler = LinearWarmupCosineAnnealingLR(optimizer, warmup_epochs=config.optimizer.warmup.epoch, max_epochs=config.common.max_epoch)
@@ -277,6 +275,8 @@ if __name__ == "__main__":
         start_epoch = load_checkpoint(model, optimizer, scheduler, f"{checkpoint_path}/model.pth", device)
     else:
         start_epoch = 1
+    if not config.common.distributed:
+        model = nn.DataParallel(model)
 
     # test(metrics, start_epoch, model, val_loader, config, writer, scaler, val_mapping)
     for epoch in tqdm(range(start_epoch, config.common.max_epoch+2), desc="Epochs", unit="epoch"):

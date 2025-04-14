@@ -5,7 +5,7 @@ yaml_file="autoregressive_stacked"
 path="/data/scratch/ellen660/rq-vae-transformer/rqvae/params/$yaml_file.yaml"
 export CUDA_VISIBLE_DEVICES=4,5,6,7
 run_name="6_second_6_codebooks"
-resume_from=""
+resume_from="tensorboard/autoregressive_stacked/6_second_6_codebooks/20250412-2329/ max_epoch=400 batch_size=4 init_lr=0.0005 num_steps=4 stack_every=1"
 
 # Set PATH_TO_USE based on whether RESUME_PATH is empty or not
 if [ -n "$resume_from" ]; then
@@ -21,7 +21,7 @@ hyperparameters=(
   [".optimizer.init_lr"]="0.0005"
   [".dataset.batch_size"]="8"
   [".common.max_epoch"]="400"
-  [".dataset.stack_every"]="5"
+  [".dataset.stack_every"]="1"
   [".loss.num_steps"]="4"
 )
 
@@ -37,7 +37,6 @@ for lr in "${lr_list[@]}"; do
       hyperparameters[".optimizer.init_lr"]=$lr
       hyperparameters[".dataset.batch_size"]=$batch_size
       hyperparameters[".loss.num_steps"]=$num_steps
-      hyperparameters[".dataset.stack_every"]=$stack_every
 
       yq -yi '.exp_details.description = "6_second_6_codebooks"' "$path"
 
