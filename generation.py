@@ -277,8 +277,8 @@ if __name__ == "__main__":
         # "BERT style masking ratio 0.5, 30 sec tokens": "mlm/30_seconds/20250408-1218/ max_epoch=400 masking_ratio=0.5 batch_size=8 lr=0.0005",
         # "BERT style masking ratio 0.6, 30 sec tokens": "mlm/30_seconds/20250410-1400/ max_epoch=400 masking_ratio=0.6 batch_size=6 init_lr=0.0005",
         # "BERT style masking ratio 0.75, 30 sec tokens": "mlm/30_seconds/20250409-0153/ max_epoch=400 masking_ratio=0.75 batch_size=6 init_lr=0.0005",
-        # "BERT style masking ratio 0.5, 6 second tokens": None,
-        "BERT style masking ratio 0.5 with layer norm": "mlm/30_seconds_with_layernorm/20250411-2103/ max_epoch=400 masking_ratio=0.5 batch_size=12 init_lr=0.0005",
+        "BERT style masking ratio 0.5, 6 second tokens": "mlm_6/6_seconds_6_codebooks_no_stacking/20250409-0152/ max_epoch=400 masking_ratio=0.5 batch_size=4 init_lr=0.0005",
+        # "BERT style masking ratio 0.5 with layer norm": "mlm/30_seconds_with_layernorm/20250411-2103/ max_epoch=400 masking_ratio=0.5 batch_size=12 init_lr=0.0005",
     }
 
     user_name = os.getlogin()
