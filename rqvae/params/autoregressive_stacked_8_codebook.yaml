@@ -1,9 +1,10 @@
 exp_details:
   name: autoregressive_stacked
-  description: 6_second_6_codebooks
+  description: 6_second_8_codebooks
 dataset:
-  path: /data/scratch/ellen660/encodec/encodec/predictions/no_discrim/6_seconds_6_codebooks/20250402/test
-  batch_size: 4
+  path: /data/scratch/ellen660/encodec/encodec/predictions/no_discrim/6_seconds_8_codebooks/20250331/
+    max_epoch=200 debug=false bins=512 discrim=false batch_size=12 lr=1e-4
+  batch_size: 6
   stack_every: 5
   cv: 0
   max_length: 4200
@@ -23,7 +24,7 @@ arch:
   type: rq-transformer
   block_size:
     - 840
-    - 30
+    - 40
   ema: false
   embed_dim: 256
   input_embed_dim: 256
@@ -34,7 +35,7 @@ arch:
   cumsum_depth_ctx: true
   vocab_size_cond: 1
   block_size_cond: 1
-  vocab_size: 1024
+  vocab_size: 512
   embd_pdrop: 0
   body:
     n_layer: 12
@@ -51,7 +52,7 @@ loss:
   soft: false
   stochastic_codes: false
   temp: 0.5
-  num_steps: 4
+  num_steps: 1
 optimizer:
   type: adamW
   init_lr: 0.0005

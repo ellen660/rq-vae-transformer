@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # Path to the YAML file
-yaml_file="autoregressive_stacked"
+yaml_file="autoregressive_stacked_8_codebook"
 path="/data/scratch/ellen660/rq-vae-transformer/rqvae/params/$yaml_file.yaml"
-export CUDA_VISIBLE_DEVICES=0,1,2,3
-run_name="6_second_6_codebooks"
+# export CUDA_VISIBLE_DEVICES=4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1,4,5,6,7
+run_name="6_second_8_codebooks"
 resume_from=""
 
 # Set PATH_TO_USE based on whether RESUME_PATH is empty or not
@@ -19,7 +20,7 @@ echo "Using path: $path"
 declare -A hyperparameters
 hyperparameters=(
   [".optimizer.init_lr"]="0.0005"
-  [".dataset.batch_size"]="8"
+  [".dataset.batch_size"]="4"
   [".common.max_epoch"]="1000"
   [".dataset.stack_every"]="5"
   [".loss.num_steps"]="4"
@@ -27,10 +28,10 @@ hyperparameters=(
 
 #Iterate over a bunch 
 lr_list=("0.0005")  
-batch_size_list=("4")  
-num_steps_list=("4")
+batch_size_list=("6")  
+num_steps_list=("1")
 stack_every_list=("5")
-embed_dim=("256") #MAKE SURE OF THIS
+embed_dim=("256")
 
 # Iterate over all combinations of hyperparameters
 for lr in "${lr_list[@]}"; do
@@ -43,7 +44,7 @@ for lr in "${lr_list[@]}"; do
           hyperparameters[".loss.num_steps"]=$num_steps
           hyperparameters[".dataset.stack_every"]=$stack_every
 
-          yq -yi '.exp_details.description = "6_second_6_codebooks"' "$path"
+          yq -yi '.exp_details.description = "6_second_8_codebooks"' "$path"
 
           # Replace parameters in the YAML file using yq
           # Shouldn't need to edit this part

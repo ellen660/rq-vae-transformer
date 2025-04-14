@@ -86,6 +86,9 @@ class RQTransformer(Stage2Model):
         # ==== AR modeling layer definitions ====
         self.body_transformer = AttentionStack(config.body)
         self.head_transformer = AttentionStack(config.head)
+        #print number of params
+        num_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        print(f"Number of params: {num_params}")
 
         # ==== final fc layer definition ====
         self.classifier = nn.Sequential(OrderedDict([

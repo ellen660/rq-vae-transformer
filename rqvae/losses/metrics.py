@@ -21,7 +21,7 @@ class Metrics():
             "top1": {},
             "top5":{}
         }
-        for i in range(32):
+        for i in range(40):
             self.metrics_dict[f"Cross Entropy {i}"] = {}
             self.metrics_dict[f'Top 1 {i}'] = {}
             self.metrics_dict[f'Top 5 {i}'] = {}
@@ -50,7 +50,7 @@ class Metrics():
             "top1": {},
             "top5":{}
         }
-        for i in range(32):
+        for i in range(40):
             self.metrics_dict[f"Cross Entropy {i}"] = {}
             # self.metrics_dict[f"AUROC Codebook {i}"] = {}
             self.metrics_dict[f'Top 1 {i}'] = {}

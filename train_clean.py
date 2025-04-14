@@ -25,6 +25,7 @@ import argparse
 from dataclasses import fields, is_dataclass
 import torch.utils.checkpoint as checkpoint
 import functools
+import sys
 
 def predict_future(model, logits, tau=0.1):
     soft_tokens = F.gumbel_softmax(logits[:, 1:, :, :], tau, hard=False)
@@ -53,8 +54,13 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
 
         logits_i = logits
         for i in range(1, config.loss.num_steps): #2nd, 3rd, 4th pass and num_steps range from 0,1,2
+            # print(f'logits shape {logits_i.shape}')
             logits_i_plus_one = predict_future(model, logits_i, tau=0.1)
+            # print(f'logits_i_plus_one shape {logits_i_plus_one.shape}')
+            # print(f'target shape {target[:, i:, :].shape}')
+            # sys.exit()
             loss += model.module.compute_loss(logits_i_plus_one, target[:, i:, :], use_soft_target=config.loss.soft)
+            logits_i = logits_i_plus_one
         # loss = loss / config.loss.num_steps
             
         # Predict two steps ahead
