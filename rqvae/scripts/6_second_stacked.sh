@@ -20,7 +20,7 @@ declare -A hyperparameters
 hyperparameters=(
   [".optimizer.init_lr"]="0.0005"
   [".dataset.batch_size"]="8"
-  [".common.max_epoch"]="400"
+  [".common.max_epoch"]="1000"
   [".dataset.stack_every"]="1"
   [".loss.num_steps"]="4"
 )

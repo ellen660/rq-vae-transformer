@@ -279,7 +279,8 @@ if __name__ == "__main__":
         # "Autoregressive 30 seconds 1 step old": "test/20250218/body_12layers_16heads_head_12layers_16heads",
         # "Autoregressive stacking 6 seconds 1 step reduced dim": "autoregressive_stacked/6_second_6_codebooks/20250409-1604/ max_epoch=400 batch_size=4 init_lr=0.0005 num_steps=1 stack_every=5",
         # "Autoregressive stacking 6 seconds 4 step reduced dim": "autoregressive_stacked/6_second_6_codebooks/20250409-1605/ max_epoch=400 batch_size=4 init_lr=0.0005 num_steps=4 stack_every=5",
-        "Autoregressive no stacking 6 seconds 1 step reduced dim": "autoregressive_stacked/6_second_6_codebooks/20250412-2334/ max_epoch=400 batch_size=6 init_lr=0.0005 num_steps=1 stack_every=1",
+        # "Autoregressive no stacking 6 seconds 1 step reduced dim": "autoregressive_stacked/6_second_6_codebooks/20250412-2334/ max_epoch=400 batch_size=6 init_lr=0.0005 num_steps=1 stack_every=1",
+        "Autoregressive no stacking 6 seconds 4 step reduced dim": "autoregressive_stacked/6_second_6_codebooks/20250412-2329/ max_epoch=400 batch_size=4 init_lr=0.0005 num_steps=4 stack_every=1",
     }
     user_name = os.getlogin()
 

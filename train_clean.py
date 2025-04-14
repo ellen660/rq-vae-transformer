@@ -52,10 +52,10 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
         #Predict future steps
 
         logits_i = logits
-        for i in range(config.loss.num_steps-1):
-            logits_i = predict_future(model, logits_i, tau=0.1)
-            loss += model.module.compute_loss(logits_i, target[:, i+1:, :], use_soft_target=config.loss.soft)
-        loss = loss / config.loss.num_steps
+        for i in range(1, config.loss.num_steps): #2nd, 3rd, 4th pass and num_steps range from 0,1,2
+            logits_i_plus_one = predict_future(model, logits_i, tau=0.1)
+            loss += model.module.compute_loss(logits_i_plus_one, target[:, i:, :], use_soft_target=config.loss.soft)
+        # loss = loss / config.loss.num_steps
             
         # Predict two steps ahead
         # logits2 = predict_future(model, logits, tau=0.1)
@@ -87,7 +87,7 @@ def train_one_step(metrics, epoch, optimizer, scheduler, model, train_loader, co
             metrics[d_id].fill_metrics(losses[d_id], epoch*len(train_loader) + i)
 
     scheduler.step()  # Update learning rate
-    loss_per_epoch = epoch_loss/len(train_loader)
+    loss_per_epoch = epoch_loss/(len(train_loader)*config.loss.num_steps)
     print(f"Epoch {epoch}, training loss: {loss_per_epoch}")
     for d_id in label_mapping.keys():
         metrics_dict = metrics[d_id].compute_and_log_metrics(loss_per_epoch)
